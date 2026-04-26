@@ -150,16 +150,10 @@ Update `app.js` to consume the backend API instead of calling Open-Meteo directl
 Connect everything and test end-to-end.
 
 ### Tasks
-- [ ] `cmd/server/main.go`: wire cache → client → processor → handler
-- [ ] Start server, open browser, verify:
-  - All 8 sites load with correct data
-  - Hour blocks show correct colors
-  - Tooltips display all values
-  - Threshold sliders re-evaluate instantly
-  - Best bet banner appears
-  - Refresh button re-fetches from backend
-- [ ] Test error handling: stop backend, verify frontend shows error state
-- [ ] Test cache: first call hits API, second call serves from cache
+- [x] `cmd/server/main.go`: wire cache → client → processor → handler
+- [x] Start server, open browser, verify...
+- [x] Test error handling: stop backend, verify frontend shows error state
+- [x] Test cache: first call hits API, second call serves from cache
 
 ---
 
