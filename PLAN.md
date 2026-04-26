@@ -70,10 +70,10 @@ Cache Open-Meteo responses in memory with 24h TTL.
 Return site direction ranges so the frontend can compute all flyability flags.
 
 ### Tasks
-- [ ] Create `internal/forecast/processor.go`
-- [ ] Define output structs for the API response (site name, direction ranges, hours)
-- [ ] No compass logic needed in Go — the frontend already has it
-- [ ] Direction ranges are passed through from config, not computed
+- [x] Create `internal/forecast/processor.go`
+- [x] Define output structs for the API response (site name, direction ranges, hours)
+- [x] No compass logic needed in Go — the frontend already has it
+- [x] Direction ranges are passed through from config, not computed
 
 ---
 
@@ -82,8 +82,8 @@ Return site direction ranges so the frontend can compute all flyability flags.
 Expose a single endpoint that returns all sites with processed data.
 
 ### Tasks
-- [ ] Create `internal/api/handler.go`
-- [ ] `GET /api/forecast` — returns JSON:
+- [x] Create `internal/api/handler.go`
+- [x] `GET /api/forecast` — returns JSON:
   ```json
   {
     "sites": [
@@ -108,8 +108,8 @@ Expose a single endpoint that returns all sites with processed data.
     "fetched_at": "2026-04-26T10:00:00Z"
   }
   ```
-- [ ] Per-site errors returned in `error` field (null on success)
-- [ ] Register handler in `cmd/server/main.go`
+- [x] Per-site errors returned in `error` field (null on success)
+- [x] Register handler in `cmd/server/main.go`
 
 ---
 
