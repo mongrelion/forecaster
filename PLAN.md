@@ -55,13 +55,13 @@ Build the API client that fetches forecasts for all sites concurrently.
 Cache Open-Meteo responses in memory with 24h TTL.
 
 ### Tasks
-- [ ] Create `internal/forecast/cache.go`
-- [ ] Implement thread-safe cache (sync.RWMutex + map)
-- [ ] Cache key: site lat+lon
-- [ ] TTL: 24 hours
-- [ ] `Get(site) (data, hit)`
-- [ ] `Set(site, data)`
-- [ ] Wire into `FetchSite`: check cache before API call, store on miss
+- [x] Create `internal/forecast/cache.go`
+- [x] Implement thread-safe cache (sync.RWMutex + map)
+- [x] Cache key: site lat+lon
+- [x] TTL: 24 hours
+- [x] `Get(site) (data, hit)`
+- [x] `Set(site, data)`
+- [x] Wire into `FetchSite`: check cache before API call, store on miss
 
 ---
 
