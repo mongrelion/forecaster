@@ -9,11 +9,16 @@ import (
 )
 
 func main() {
-	cache := forecast.NewCache()
+	cache   := forecast.NewCache()
 	handler := api.NewHandler(cache)
 
 	mux := http.NewServeMux()
+
+	// API routes first — must match before static file server
 	mux.HandleFunc("GET /api/forecast", handler.ServeHTTP)
+
+	// Serve frontend assets
+	mux.Handle("/", http.FileServer(http.Dir("public")))
 
 	addr := ":8080"
 	log.Printf("Starting forecaster server on %s", addr)

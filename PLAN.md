@@ -118,9 +118,9 @@ Expose a single endpoint that returns all sites with processed data.
 Serve the frontend from the same Go binary.
 
 ### Tasks
-- [ ] Serve `public/` directory at `/` using `http.FileServer`
-- [ ] Ensure `/api/*` routes are handled before the file server catch-all
-- [ ] Verify `index.html`, `app.css`, `app.js` are served correctly
+- [x] Serve `public/` directory at `/` using `http.FileServer`
+- [x] Ensure `/api/*` routes are handled before the file server catch-all
+- [x] Verify `index.html`, `app.css`, `app.js` are served correctly
 
 ---
 
