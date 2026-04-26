@@ -1,0 +1,25 @@
+# Binaries
+/server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Vendor (if used)
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
