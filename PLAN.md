@@ -129,19 +129,19 @@ Serve the frontend from the same Go binary.
 Update `app.js` to consume the backend API instead of calling Open-Meteo directly.
 
 ### Tasks
-- [ ] Remove `API_BASE`, `MAX_FORECAST_DAYS`, `buildUrl()`, `fetchSite()`, `fetchAll()`
-- [ ] Remove all localStorage cache logic (`CACHE_PREFIX`, `siteCacheKey`, `getFromCache`, `setInCache`)
-- [ ] Remove `MAX_GUSTS` constant (keep it only in frontend)
-- [ ] Keep `SITES` direction ranges only for reference — actual site data comes from backend
-- [ ] Replace `loadData()`:
+- [x] Remove `API_BASE`, `MAX_FORECAST_DAYS`, `buildUrl()`, `fetchSite()`, `fetchAll()`
+- [x] Remove all localStorage cache logic (`CACHE_PREFIX`, `siteCacheKey`, `getFromCache`, `setInCache`)
+- [x] Remove `MAX_GUSTS` constant (keep it only in frontend)
+- [x] Keep `SITES` direction ranges only for reference — actual site data comes from backend
+- [x] Replace `loadData()`:
   - Fetch `GET /api/forecast`
   - Store response in `rawResponses`
-- [ ] Update `processResponse()` to read site direction from backend response and compute all flags client-side: `dir_ok`, `gusts_ok`, `cloud_ok`, `rain_ok`
-- [ ] Keep threshold logic computed client-side from raw values
-- [ ] Keep `findWindows()`, `findBestBet()`, `renderAll()` unchanged
-- [ ] Keep threshold controls working (re-process without network call)
-- [ ] Remove "Clear cache" button (no longer relevant)
-- [ ] Update footer or add note about backend
+- [x] Update `processResponse()` to read site direction from backend response and compute all flags client-side: `dir_ok`, `gusts_ok`, `cloud_ok`, `rain_ok`
+- [x] Keep threshold logic computed client-side from raw values
+- [x] Keep `findWindows()`, `findBestBet()`, `renderAll()` unchanged
+- [x] Keep threshold controls working (re-process without network call)
+- [x] Remove "Clear cache" button (no longer relevant)
+- [x] Update footer or add note about backend
 
 ---
 

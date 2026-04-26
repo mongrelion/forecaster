@@ -30,8 +30,6 @@ const state = {
   sortBy:         'flyability', // 'flyability' | 'alpha'
 };
 
-let rawResponses = []; // cached API responses; re-processed when thresholds change
-
 // ── Tooltip ────────────────────────────────────────────────────────────────────
 
 const tooltipEl = document.getElementById('tooltip');
@@ -45,7 +43,6 @@ function showTooltip(e, html) {
 
 function positionTooltip(e) {
   const margin = 14;
-  // Render off-screen first to measure
   tooltipEl.style.left = '0px';
   tooltipEl.style.top  = '0px';
   const { width, height } = tooltipEl.getBoundingClientRect();
@@ -68,151 +65,49 @@ function hideTooltip() {
   tooltipEl.setAttribute('aria-hidden', 'true');
 }
 
-// ── Cache ──────────────────────────────────────────────────────────────────────
-
-const CACHE_PREFIX = 'forecaster:';
-const CACHE_TTL    = 24 * 60 * 60 * 1000; // 24 hours in ms
-
-// Simple hash for cache key — enough to differentiate URLs
-function strHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + code;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
-}
-
-/**
- * Cache key based on site identity (lat/lon), not the full URL.
- * This means all day variants for one site share a single cache entry.
- */
-function siteCacheKey(site) {
-  return `${CACHE_PREFIX}${strHash(`${site.lat},${site.lon}`)}`;
-}
-
-/**
- * Read from localStorage cache. Returns { data, ts } or null if missing/expired.
- */
-function getFromCache(site) {
-  const key = siteCacheKey(site);
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const entry = JSON.parse(raw);
-    // Only serve if younger than CACHE_TTL (24h)
-    if (Date.now() - entry.ts > CACHE_TTL) {
-      localStorage.removeItem(key);
-      return null;
-    }
-    return entry;
-  } catch {
-    // Corrupt entry — discard and refetch
-    try { localStorage.removeItem(key); } catch {}
-    return null;
-  }
-}
-
-/**
- * Write to localStorage cache with timestamp.
- */
-function setInCache(site, data) {
-  const key = siteCacheKey(site);
-  try {
-    localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
-  } catch {
-    // Quota exceeded — best-effort; silently fail
-  }
-}
-
-// ── API ────────────────────────────────────────────────────────────────────────
-
-// Always fetch the maximum forecast window so all day variants share one API call
-const MAX_FORECAST_DAYS = 7;
-
-function buildUrl(site) {
-  const params = new URLSearchParams({
-    latitude:       site.lat,
-    longitude:      site.lon,
-    hourly:         'is_day,precipitation_probability,temperature_2m,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-    timezone:       'Europe/Stockholm',
-    past_days:      0,
-    forecast_days:  MAX_FORECAST_DAYS,
-  });
-  return `${API_BASE}?${params}`;
-}
-
-/**
- * Fetch a single site's forecast, using cache when available.
- */
-async function fetchSite(site) {
-  // Try cache first
-  const cached = getFromCache(site);
-  if (cached) {
-    return { site, data: cached.data, error: null, isCached: true };
-  }
-
-  // Cache miss — always fetch full 7-day forecast
-  try {
-    const resp = await fetch(buildUrl(site));
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    setInCache(site, data);
-    return { site, data, error: null };
-  } catch (err) {
-    // Network failure — fall back to cache if available
-    const stale = getFromCache(site);
-    if (stale) return { site, data: stale.data, error: err.message + ' (served from cache)', isCached: true };
-    return { site, data: null, error: err.message };
-  }
-}
-
-async function fetchAll() {
-  return Promise.all(
-    SITES.map(site => fetchSite(site))
-  );
-}
-
 // ── Data processing ────────────────────────────────────────────────────────────
 
 function isWindInRange(dir, [min, max]) {
   if (min <= max) return dir >= min && dir <= max;
-  return dir >= min || dir <= max; // wraps around 0°/360° (e.g. [340, 20])
+  return dir >= min || dir <= max; // wraps around 0°/360°
 }
 
 function blockColor(hour) {
-  if (hour.isDay === 0) return '#0c1526';           // night — nearly invisible
-  if (hour.flyable)     return '#4ade80';           // all conditions met
-  if (hour.marginal)    return 'rgba(251,191,36,0.65)'; // close but not quite
-  return '#1c2b42';                                 // daytime, not flyable
+  if (hour.isDay === 0) return '#0c1526';                      // night — nearly invisible
+  if (hour.flyable)     return '#4ade80';                     // all conditions met
+  if (hour.marginal)    return 'rgba(251,191,36,0.65)';       // close but not quite
+  return '#1c2b42';                                           // daytime, not flyable
 }
 
-function processResponse(apiData, site) {
-  const h = apiData.hourly;
+/**
+ * Compute flyability flags for each hour in the backend's response.
+ * direction comes from the backend (not SITES reference array).
+ * gusts check uses 25 km/h hard limit.
+ */
+function processResponse(siteData) {
+  return siteData.hours.map(h => {
+    const dirOk   = isWindInRange(h.wind_dir, compassToRange(...siteData.direction));
+    const gustsOk = h.gusts     <= 25;
+    const cloudOk = h.cloud     <= state.cloudThreshold;
+    const rainOk  = h.rain      <= state.rainThreshold;
 
-  return h.time.map((time, i) => {
-    const isDay     = h.is_day[i];
-    const windDir   = h.wind_direction_10m[i];
-    const gusts     = h.wind_gusts_10m[i];
-    const cloud     = h.cloud_cover[i];
-    const rain      = h.precipitation_probability[i];
-    const windSpeed = h.wind_speed_10m[i];
-    const temp      = h.temperature_2m[i];
-
-    const dirOk   = isWindInRange(windDir, compassToRange(...site.direction));
-    const gustsOk = gusts     <= MAX_GUSTS;
-    const cloudOk = cloud     <= state.cloudThreshold;
-    const rainOk  = rain      <= state.rainThreshold;
-
-    const flyable = isDay === 1 && dirOk && gustsOk && cloudOk && rainOk;
+    const flyable = h.is_day === 1 && dirOk && gustsOk && cloudOk && rainOk;
 
     // Marginal: safe to fly (dir + gusts OK) but exactly one weather condition failing
     const weatherFails = [cloudOk, rainOk].filter(v => !v).length;
-    const marginal = !flyable && isDay === 1 && dirOk && gustsOk && weatherFails === 1;
+    const marginal = !flyable && h.is_day === 1 && dirOk && gustsOk && weatherFails === 1;
 
-    return { time, isDay, windDir, gusts, cloud, rain, windSpeed, temp,
-             dirOk, gustsOk, cloudOk, rainOk, flyable, marginal };
+    return {
+      time:    h.time,
+      isDay:   h.is_day,
+      windDir: h.wind_dir,
+      gusts:   h.gusts,
+      cloud:   h.cloud,
+      rain:    h.rain,
+      windSpeed: h.wind_speed,
+      temp:    h.temp,
+      dirOk, gustsOk, cloudOk, rainOk, flyable, marginal,
+    };
   });
 }
 
@@ -241,7 +136,7 @@ function findWindows(hours) {
   if (current) windows.push(current);
 
   return windows.map(group => {
-    const avg  = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
     return {
       startTime: group[0].time,
       endTime:   group[group.length - 1].time,
@@ -275,8 +170,8 @@ function findBestBet(results) {
     const aHours = a.hours.filter(h => h.flyable).length;
     const bHours = b.hours.filter(h => h.flyable).length;
     if (bHours !== aHours) return bHours - aHours;
-    const aMax   = Math.max(...a.windows.map(w => w.count));
-    const bMax   = Math.max(...b.windows.map(w => w.count));
+    const aMax = Math.max(...a.windows.map(w => w.count));
+    const bMax = Math.max(...b.windows.map(w => w.count));
     return bMax - aMax;
   });
 
@@ -285,19 +180,14 @@ function findBestBet(results) {
   return { site: best.site, window: bestWindow };
 }
 
-// ── Formatting helpers ─────────────────────────────────────────────────────────
+// ── Formatting helpers ──────────────────────────────────────────────────────────
 
 const DAYS_SHORT   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_SHORT  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function parseDateStr(isoStr) {
   const [y, m, d] = isoStr.slice(0, 10).split('-').map(Number);
   return { y, m, d };
-}
-
-function dayOfWeek(isoStr) {
-  const { y, m, d } = parseDateStr(isoStr);
-  return new Date(y, m - 1, d).getDay();
 }
 
 // "Wed 23"
@@ -319,7 +209,6 @@ function formatTime(isoStr) {
   return isoStr.slice(11, 16);
 }
 
-// End of last hour slot → start + 1h  (e.g. last hour "16:00" → display "17:00")
 function endTime(lastHourIso) {
   const hour = parseInt(lastHourIso.slice(11, 13), 10);
   return `${String((hour + 1) % 24).padStart(2, '0')}:00`;
@@ -333,7 +222,6 @@ function todayStr() {
 
 // ── SVG helpers ────────────────────────────────────────────────────────────────
 
-// Arrow pointing in the direction the wind is travelling (i.e. 180° from where it comes from)
 function windArrowSvg(degrees, cls = 'wind-arrow') {
   return `<svg class="${cls}" viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg"
     style="transform:rotate(${(degrees + 180) % 360}deg)" aria-hidden="true">
@@ -361,11 +249,11 @@ function buildTooltipHTML(hour) {
 
   return `
     <div class="tt-header">${dateLabel} · ${timeLabel}</div>
-    ${row(hour.dirOk,                        'Direction', degToCompass(hour.windDir))}
-    ${row(hour.windSpeed <= MAX_GUSTS, 'Wind',      `${Math.round(hour.windSpeed)} km/h`)}
-    ${row(hour.gustsOk,                         'Gusts',     `${Math.round(hour.gusts)} km/h`)}
-    ${row(hour.cloudOk, 'Cloud',     `${hour.cloud}%`)}
-    ${row(hour.rainOk,  'Rain',      `${hour.rain}%`)}
+    ${row(hour.dirOk,                 'Direction', degToCompass(hour.windDir))}
+    ${row(hour.windSpeed <= 25,       'Wind',      `${Math.round(hour.windSpeed)} km/h`)}
+    ${row(hour.gustsOk,              'Gusts',     `${Math.round(hour.gusts)} km/h`)}
+    ${row(hour.cloudOk,              'Cloud',     `${hour.cloud}%`)}
+    ${row(hour.rainOk,               'Rain',      `${hour.rain}%`)}
     <div class="tt-row neutral">
       <span class="tt-key">Temp</span>
       <span class="tt-val">${hour.temp.toFixed(1)}°C</span>
@@ -388,8 +276,8 @@ function createHourBlock(hour) {
 }
 
 function renderWindowRow(w) {
-  const div       = document.createElement('div');
-  div.className   = 'window-row';
+  const div = document.createElement('div');
+  div.className = 'window-row';
 
   const today     = todayStr();
   const dateLabel = w.startTime.slice(0, 10) === today ? 'Today' : formatDate(w.startTime);
@@ -435,12 +323,12 @@ function renderCard(result) {
   }
 
   const hasFlyable = windows.length > 0;
-  card.className   = `site-card${hasFlyable ? ' has-windows' : ''}`;
+  card.className = `site-card${hasFlyable ? ' has-windows' : ''}`;
 
-  // ── Header
-  const header       = document.createElement('div');
-  header.className   = 'card-header';
-  header.innerHTML   = `
+  // Header
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = `
     <div class="card-title">
       <span class="site-name">${site.name}</span>
       <span class="dir-badge">${site.direction[0]}–${site.direction[1]}</span>
@@ -450,20 +338,20 @@ function renderCard(result) {
     </div>`;
   card.appendChild(header);
 
-  // ── Hour strip
-  const stripArea    = document.createElement('div');
+  // Hour strip
+  const stripArea = document.createElement('div');
   stripArea.className = 'strip-area';
 
   for (const { date, dayHours } of groupByDay(hours)) {
-    const row      = document.createElement('div');
-    row.className  = 'day-row';
+    const row = document.createElement('div');
+    row.className = 'day-row';
 
-    const label    = document.createElement('span');
+    const label = document.createElement('span');
     label.className = 'strip-day-label';
     label.textContent = formatDayLabel(date);
     row.appendChild(label);
 
-    const blocks   = document.createElement('div');
+    const blocks = document.createElement('div');
     blocks.className = 'blocks';
     for (const hour of dayHours) blocks.appendChild(createHourBlock(hour));
     row.appendChild(blocks);
@@ -471,10 +359,9 @@ function renderCard(result) {
     stripArea.appendChild(row);
   }
 
-  // Time labels row
-  const stripFooter      = document.createElement('div');
-  stripFooter.className  = 'strip-footer';
-  stripFooter.innerHTML  = `
+  const stripFooter = document.createElement('div');
+  stripFooter.className = 'strip-footer';
+  stripFooter.innerHTML = `
     <span></span>
     <div class="time-labels">
       <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
@@ -482,15 +369,15 @@ function renderCard(result) {
   stripArea.appendChild(stripFooter);
   card.appendChild(stripArea);
 
-  // ── Windows
-  const windowsArea    = document.createElement('div');
+  // Windows
+  const windowsArea = document.createElement('div');
   windowsArea.className = 'windows-area';
 
   if (hasFlyable) {
     for (const w of windows) windowsArea.appendChild(renderWindowRow(w));
   } else {
-    const noWin       = document.createElement('div');
-    noWin.className   = 'no-windows';
+    const noWin = document.createElement('div');
+    noWin.className = 'no-windows';
     noWin.textContent = 'No flyable conditions in this period';
     windowsArea.appendChild(noWin);
   }
@@ -500,15 +387,15 @@ function renderCard(result) {
 }
 
 function renderBestBet(bestBet) {
-  const container   = document.getElementById('best-bet-container');
+  const container = document.getElementById('best-bet-container');
   container.innerHTML = '';
   if (!bestBet) return;
 
   const { site, window: w } = bestBet;
-  const today      = todayStr();
-  const dateLabel  = w.startTime.slice(0, 10) === today ? 'Today' : formatDate(w.startTime);
+  const today     = todayStr();
+  const dateLabel = w.startTime.slice(0, 10) === today ? 'Today' : formatDate(w.startTime);
 
-  const banner     = document.createElement('div');
+  const banner = document.createElement('div');
   banner.className = 'best-bet';
   banner.innerHTML = `
     <div class="best-bet-inner">
@@ -522,25 +409,17 @@ function renderBestBet(bestBet) {
 }
 
 function renderAll(results) {
-  const grid         = document.getElementById('site-grid');
-  grid.innerHTML     = '';
+  const grid = document.getElementById('site-grid');
+  grid.innerHTML = '';
 
   renderBestBet(findBestBet(results));
 
   for (const result of sortResults(results)) grid.appendChild(renderCard(result));
 
-  // Timestamp — only show if we actually fetched; otherwise indicate cache usage
-  const anyFetched = results.some(r => r.error === null && !r.isCached);
-  if (anyFetched) {
-    const now = new Date();
-    document.getElementById('updated-label').textContent =
-      `Updated ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  } else {
-    // All data came from cache — check if any error was cached
-    const hasCachedErrors = results.some(r => r.error && r.error.includes('served from cache'));
-    document.getElementById('updated-label').textContent =
-      `Cached${hasCachedErrors ? ' (retries failed)' : ''} · refreshed today`;
-  }
+  // Update timestamp from backend
+  const now = new Date();
+  document.getElementById('updated-label').textContent =
+    `Updated ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   document.getElementById('refresh-btn').classList.remove('loading');
 }
@@ -554,20 +433,40 @@ function showLoadingState() {
 
 // ── Data pipeline ──────────────────────────────────────────────────────────────
 
-function processAndRender() {
-  const results = rawResponses.map(({ site, data, error, isCached }) => {
-    if (error) return { site, hours: [], windows: [], error };
-    const hours   = processResponse(data, site);
+/**
+ * Process backend sites into { site, hours, windows, error } results,
+ * then render. Re-runs without network call when thresholds change.
+ */
+function processAndRender(backendSites) {
+  window._backendSites = backendSites; // persist for threshold re-evaluation
+  const results = backendSites.map(siteData => {
+    if (siteData.error) {
+      const site = { name: siteData.name, direction: siteData.direction };
+      return { site, hours: [], windows: [], error: siteData.error };
+    }
+    const hours   = processResponse(siteData);
     const windows = findWindows(hours);
-    return { site, hours, windows, error: null, isCached };
+    const site    = { name: siteData.name, direction: siteData.direction };
+    return { site, hours, windows, error: null };
   });
   renderAll(results);
 }
 
 async function loadData() {
   showLoadingState();
-  rawResponses = await fetchAll();
-  processAndRender();
+  try {
+    const resp = await fetch('/api/forecast');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    processAndRender(data.sites);
+  } catch (err) {
+    document.getElementById('site-grid').innerHTML =
+      `<div class="error-card" style="max-width:600px;margin:2rem auto;text-align:center;padding:1.5rem;border-radius:8px;color:#ef4444;background:#1c1c1c">
+         <strong>Could not load forecasts</strong><br>
+         <span style="color:#9ca3af;font-size:0.875rem">${err.message}</span>
+       </div>`;
+    document.getElementById('refresh-btn').classList.remove('loading');
+  }
 }
 
 // ── Controls ───────────────────────────────────────────────────────────────────
@@ -580,7 +479,8 @@ function setupControls() {
     document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     state.sortBy = btn.dataset.sort;
-    processAndRender();
+    // Re-sort and re-render from stored site data without refetching
+    if (window._backendSites) processAndRender(window._backendSites);
   });
 
   // Thresholds toggle
@@ -596,23 +496,16 @@ function setupControls() {
   // Threshold inputs — re-process without refetching
   document.getElementById('rain-input').addEventListener('change', e => {
     state.rainThreshold = Math.max(0, Math.min(100, Number(e.target.value)));
-    processAndRender();
+    if (window._backendSites) processAndRender(window._backendSites);
   });
 
   document.getElementById('cloud-input').addEventListener('change', e => {
     state.cloudThreshold = Math.max(0, Math.min(100, Number(e.target.value)));
-    processAndRender();
+    if (window._backendSites) processAndRender(window._backendSites);
   });
 
   // Refresh button
   document.getElementById('refresh-btn').addEventListener('click', loadData);
-
-  // Clear cache button — discard stored forecasts and re-fetch
-  document.getElementById('clear-cache-btn').addEventListener('click', () => {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
-    keys.forEach(k => localStorage.removeItem(k));
-    loadData();
-  });
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
