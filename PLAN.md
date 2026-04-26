@@ -1,159 +1,93 @@
-# Plan: Move API Logic to Go Backend
+# Plan: Switch Forecast Provider to ECMWF IFS HRES
 
 ## Goal
-Move Open-Meteo API interaction from the browser to a Go backend. The backend fetches forecasts, caches responses, and returns raw hourly data + site metadata (direction ranges). The frontend computes all flyability flags and handles user-configurable thresholds (cloud, rain) and all rendering.
+Replace Open-Meteo's default "best match" weather model with ECMWF IFS HRES 9km for more accurate forecasts at northern Swedish paragliding sites. The switch is made through Open-Meteo's existing JSON API by adding `&models=ecmwf_ifs` — no GRIB parsing, no new accounts, no API keys. The frontend API contract remains identical (same JSON shape), with a minor addition of a `model` field for display.
 
 ---
 
-## Stage 1 — Go Project Setup
+## Stage 1 — Switch to ECMWF IFS Model in Go Backend
 
-Initialize the Go module and establish project structure.
+Add the `models=ecmwf_ifs` query parameter to the Open-Meteo API URL and expose a model name constant.
 
 ### Tasks
-- [x] Initialize Go module (`go mod init`)
-- [x] Create `cmd/server/main.go` entry point with HTTP server
-- [x] Set up `internal/` package structure:
-  ```
-  internal/
-    config/    — sites list, constants
-    forecast/  — Open-Meteo client, caching, processing
-    api/       — HTTP handlers
-  ```
-- [x] Add `.gitignore` for Go binaries
-- [x] Add `Makefile` with targets for building `make build`, testing `make test` and running `make run` the project
+- [x] Add `ModelName` constant (e.g., `"ECMWF IFS HRES 9km"`) to `internal/config/sites.go`
+- [x] Update `fetchFromAPI()` in `internal/forecast/client.go` to include `&models=ecmwf_ifs` in the URL parameters
+- [x] Verify the response JSON shape is identical to the current one (same hourly keys, same types) by running the existing tests
 
 ---
 
-## Stage 2 — Sites Configuration
+## Stage 2 — Smart Cache Expiration Based on ECMWF Run Schedule
 
-Move the sites list from `app.js` to a Go config package.
+Replace the fixed 24h cache TTL with a model-run-aware expiration. ECMWF IFS produces new forecasts at 00, 06, 12, 18 UTC. Data becomes available approximately 3 hours after each run start (i.e., at 03, 09, 15, 21 UTC). Cache entries should expire at the next model run completion time, so fresh data is fetched as soon as a new run is available.
 
 ### Tasks
-- [x] Create `internal/config/sites.go` with the 8 sites
-- [x] Define `Site` struct: `Name`, `Direction [2]string`, `Lat`, `Lon`
-- [x] Export `Sites` slice and `MaxGusts` constant (25 km/h)
-- [x] Remove `SITES` array from `app.js`
+- [ ] Implement `nextRunCompletion(now time.Time) time.Time` in `internal/forecast/cache.go` — returns the next ECMWF data availability time after `now` (03, 09, 15, or 21 UTC, rolling over to the next day if past 21:00 UTC)
+- [ ] Change `Cache.Set()` to set `expiresAt` to `nextRunCompletion(time.Now())` instead of `time.Now().Add(cacheTTL)`
+- [ ] Remove the `cacheTTL` constant (no longer needed)
+- [ ] Update `Cache.Get()` logic — expired entries already return `false`, no change needed
+- [ ] Update cache tests: replace TTL-based tests with run-completion-based tests (verify that entries cached at various times of day expire at the correct next run completion)
+- [ ] Add specific test cases for `nextRunCompletion()`:
+  - At 04:00 UTC → next completion is 09:00 UTC same day
+  - At 10:00 UTC → next completion is 15:00 UTC same day
+  - At 22:00 UTC → next completion is 03:00 UTC next day
+  - At 03:00 UTC (exact completion time) → next completion is 09:00 UTC (current data just became available, cache until next run)
 
 ---
 
-## Stage 3 — Open-Meteo Client
+## Stage 3 — Add Model Info to API Response
 
-Build the API client that fetches forecasts for all sites concurrently.
+Add a `model` field to the forecast API response so the frontend can display which model is in use.
 
 ### Tasks
-- [x] Create `internal/forecast/client.go`
-- [x] Define response structs matching Open-Meteo JSON shape
-- [x] Implement `FetchSite(site) (HourlyData, error)` — single site fetch
-- [x] Implement `FetchAll(sites) []SiteResult` — concurrent fetch with `sync.WaitGroup` + error isolation
-- [x] Always request 7 forecast days with `timezone=Europe/Stockholm`
-- [x] Request fields: `is_day, precipitation_probability, temperature_2m, cloud_cover, wind_speed_10m, wind_direction_10m, wind_gusts_10m`
+- [ ] Add `Model string` field to `ForecastResponse` struct in `internal/api/handler.go` with JSON tag `"model"`
+- [ ] Set `Model` to `config.ModelName` when constructing the response in `ServeHTTP()`
+- [ ] Update handler tests to verify the `model` field is present and has the expected value
 
 ---
 
-## Stage 4 — In-Process Cache
+## Stage 4 — Frontend Model Display
 
-Cache Open-Meteo responses in memory with 24h TTL.
+Update the frontend to show which forecast model is being used.
 
 ### Tasks
-- [x] Create `internal/forecast/cache.go`
-- [x] Implement thread-safe cache (sync.RWMutex + map)
-- [x] Cache key: site lat+lon
-- [x] TTL: 24 hours
-- [x] `Get(site) (data, hit)`
-- [x] `Set(site, data)`
-- [x] Wire into `FetchSite`: check cache before API call, store on miss
+- [ ] Read `model` from the API response in `loadData()` and store it (e.g., `window._modelName = data.model`)
+- [ ] Update the footer in `index.html` to show the model name (e.g., "ECMWF IFS HRES 9km via Open-Meteo" instead of just "Powered by Open-Meteo")
+- [ ] Alternatively, render the model name dynamically from the API response into the footer or controls bar
+- [ ] No changes to flyability logic, thresholds, rendering pipeline, or sorting — all untouched
 
 ---
 
-## Stage 5 — Site Metadata
+## Stage 5 — Documentation Updates
 
-Return site direction ranges so the frontend can compute all flyability flags.
+Update project documentation to reflect the ECMWF switch.
 
 ### Tasks
-- [x] Create `internal/forecast/processor.go`
-- [x] Define output structs for the API response (site name, direction ranges, hours)
-- [x] No compass logic needed in Go — the frontend already has it
-- [x] Direction ranges are passed through from config, not computed
+- [ ] Update `README.md`:
+  - Architecture diagram text: mention ECMWF IFS HRES model
+  - API section: note the `model` field in the response
+  - Usage section: mention ECMWF model if relevant
+  - Tech section: add "Weather model: ECMWF IFS HRES 9km (via Open-Meteo)"
+- [ ] Update `AGENTS.md`:
+  - API section: add `models=ecmwf_ifs` parameter, mention ECMWF schedule
+  - Note the smart cache strategy and model run times
+  - Update any references to "default model" or "best match"
 
 ---
 
-## Stage 6 — API Handler
+## Stage 6 — End-to-End Verification
 
-Expose a single endpoint that returns all sites with processed data.
-
-### Tasks
-- [x] Create `internal/api/handler.go`
-- [x] `GET /api/forecast` — returns JSON:
-  ```json
-  {
-    "sites": [
-      {
-        "name": "Balberget Ramp",
-        "direction": ["SSW", "WSW"],
-        "hours": [
-          {
-            "time": "2026-04-26T00:00",
-            "is_day": 1,
-            "wind_dir": 195,
-            "wind_speed": 12,
-            "gusts": 18,
-            "cloud": 45,
-            "rain": 10,
-            "temp": 8.5
-          }
-        ],
-        "error": null
-      }
-    ],
-    "fetched_at": "2026-04-26T10:00:00Z"
-  }
-  ```
-- [x] Per-site errors returned in `error` field (null on success)
-- [x] Register handler in `cmd/server/main.go`
-
----
-
-## Stage 7 — Static File Serving
-
-Serve the frontend from the same Go binary.
+Run the server and verify everything works with ECMWF data.
 
 ### Tasks
-- [x] Serve `public/` directory at `/` using `http.FileServer`
-- [x] Ensure `/api/*` routes are handled before the file server catch-all
-- [x] Verify `index.html`, `app.css`, `app.js` are served correctly
-
----
-
-## Stage 8 — Frontend Refactor
-
-Update `app.js` to consume the backend API instead of calling Open-Meteo directly.
-
-### Tasks
-- [x] Remove `API_BASE`, `MAX_FORECAST_DAYS`, `buildUrl()`, `fetchSite()`, `fetchAll()`
-- [x] Remove all localStorage cache logic (`CACHE_PREFIX`, `siteCacheKey`, `getFromCache`, `setInCache`)
-- [x] Remove `MAX_GUSTS` constant (keep it only in frontend)
-- [x] Keep `SITES` direction ranges only for reference — actual site data comes from backend
-- [x] Replace `loadData()`:
-  - Fetch `GET /api/forecast`
-  - Store response in `rawResponses`
-- [x] Update `processResponse()` to read site direction from backend response and compute all flags client-side: `dir_ok`, `gusts_ok`, `cloud_ok`, `rain_ok`
-- [x] Keep threshold logic computed client-side from raw values
-- [x] Keep `findWindows()`, `findBestBet()`, `renderAll()` unchanged
-- [x] Keep threshold controls working (re-process without network call)
-- [x] Remove "Clear cache" button (no longer relevant)
-- [x] Update footer or add note about backend
-
----
-
-## Stage 9 — Wire Up & Verify
-
-Connect everything and test end-to-end.
-
-### Tasks
-- [x] `cmd/server/main.go`: wire cache → client → processor → handler
-- [x] Start server, open browser, verify...
-- [x] Test error handling: stop backend, verify frontend shows error state
-- [x] Test cache: first call hits API, second call serves from cache
+- [ ] Run `make test` — all Go tests pass
+- [ ] Run `make run` — server starts without errors
+- [ ] Open browser, verify all 8 sites load with ECMWF data
+- [ ] Verify flyability evaluation still works correctly (green/amber/slate blocks)
+- [ ] Verify threshold controls re-process without network call
+- [ ] Verify refresh button fetches fresh data
+- [ ] Verify cache behavior: first call hits API, second call within same run window serves from cache
+- [ ] Verify model name is displayed in the frontend
+- [ ] Compare a few hours of ECMWF data vs the old default to confirm meaningful differences exist
 
 ---
 
@@ -161,13 +95,13 @@ Connect everything and test end-to-end.
 
 | File | Action |
 |------|--------|
-| `go.mod` | Create |
-| `cmd/server/main.go` | Create |
-| `internal/config/sites.go` | Create |
-| `internal/forecast/client.go` | Create |
-| `internal/forecast/cache.go` | Create |
-| `internal/forecast/processor.go` | Create |
-| `internal/api/handler.go` | Create |
-| `public/app.js` | Refactor (remove API/cache logic, consume backend) |
-| `public/index.html` | Minor update (remove cache button) |
-| `public/app.css` | No changes expected |
+| `internal/config/sites.go` | Add `ModelName` constant |
+| `internal/forecast/client.go` | Add `&models=ecmwf_ifs` to URL |
+| `internal/forecast/cache.go` | Replace fixed TTL with `nextRunCompletion()`, remove `cacheTTL` |
+| `internal/forecast/cache_test.go` | Rewrite TTL tests as run-completion tests, add `nextRunCompletion` tests |
+| `internal/api/handler.go` | Add `Model` field to `ForecastResponse`, populate from config |
+| `internal/api/handler_test.go` | Verify `model` field in response |
+| `public/app.js` | Read `model` from API response, store for display |
+| `public/index.html` | Update footer to show model name |
+| `README.md` | Update architecture, API, tech sections |
+| `AGENTS.md` | Update API section, cache strategy notes |

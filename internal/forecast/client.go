@@ -59,7 +59,7 @@ func FetchSite(site config.Site, cache *Cache) (*OpenMeteoResponse, error) {
 
 func fetchFromAPI(site config.Site) (*OpenMeteoResponse, error) {
 	params := fmt.Sprintf(
-		"latitude=%.6f&longitude=%.6f&hourly=is_day,precipitation_probability,temperature_2m,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=%s&past_days=0&forecast_days=%d",
+		"latitude=%.6f&longitude=%.6f&models=ecmwf_ifs&hourly=is_day,precipitation_probability,temperature_2m,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=%s&past_days=0&forecast_days=%d",
 		site.Lat, site.Lon, timezone, forecastDays,
 	)
 	url := baseURL + "?" + params

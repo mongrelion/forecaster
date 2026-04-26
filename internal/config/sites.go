@@ -20,6 +20,9 @@ var Sites = []Site{
 	{Name: "Klutmarksbacken", Direction: [2]string{"SSW", "WSW"}, Lat: 64.72117147014961, Lon: 20.782167371833356},
 }
 
+// ModelName is the human-readable name of the weather model in use.
+const ModelName = "ECMWF IFS HRES 9km"
+
 // MaxGusts is the maximum safe wind gust speed in km/h.
 // Exposed so other packages can reference it if needed.
 const MaxGusts = 25 // km/h
