@@ -29,10 +29,10 @@ Initialize the Go module and establish project structure.
 Move the sites list from `app.js` to a Go config package.
 
 ### Tasks
-- [ ] Create `internal/config/sites.go` with the 8 sites
-- [ ] Define `Site` struct: `Name`, `Direction [2]string`, `Lat`, `Lon`
-- [ ] Export `Sites` slice and `MaxGusts` constant (25 km/h)
-- [ ] Remove `SITES` array from `app.js`
+- [x] Create `internal/config/sites.go` with the 8 sites
+- [x] Define `Site` struct: `Name`, `Direction [2]string`, `Lat`, `Lon`
+- [x] Export `Sites` slice and `MaxGusts` constant (25 km/h)
+- [x] Remove `SITES` array from `app.js`
 
 ---
 
