@@ -25,9 +25,9 @@ type OpenMeteoResponse struct {
 // HourlyBlock holds the arrays for each hourly field.
 type HourlyBlock struct {
 	Time              []string  `json:"time"`
-	IsDay            []int     `json:"is_day"`
+	IsDay             []int     `json:"is_day"`
 	PrecipitationProb []float64 `json:"precipitation_probability"`
-	Temperature2m    []float64 `json:"temperature_2m"`
+	Temperature2m     []float64 `json:"temperature_2m"`
 	CloudCover        []float64 `json:"cloud_cover"`
 	WindSpeed10m      []float64 `json:"wind_speed_10m"`
 	WindDirection10m  []float64 `json:"wind_direction_10m"`

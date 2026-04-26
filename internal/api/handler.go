@@ -28,7 +28,7 @@ type ForecastResponse struct {
 // ServeHTTP handles GET /api/forecast.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	results := forecast.FetchAll(config.Sites, h.cache)
-	sites   := forecast.ProcessSites(results)
+	sites := forecast.ProcessSites(results)
 
 	resp := ForecastResponse{
 		Sites:     sites,

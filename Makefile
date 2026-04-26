@@ -14,3 +14,4 @@ clean:
 
 tidy:
 	go mod tidy
+	go fmt ./...

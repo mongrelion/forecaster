@@ -137,12 +137,24 @@ func TestProcessSitesMixedSuccessAndError(t *testing.T) {
 	if len(out) != 3 {
 		t.Fatalf("len=%d, want 3", len(out))
 	}
-	if out[0].Error != nil    { t.Errorf("out[0] should be ok") }
-	if out[1].Error == nil   { t.Errorf("out[1] should have error") }
-	if out[2].Error != nil    { t.Errorf("out[2] should be ok") }
-	if len(out[0].Hours) != 2 { t.Errorf("out[0] hours len=%d, want 2", len(out[0].Hours)) }
-	if len(out[1].Hours) != 0 { t.Errorf("out[1] hours len=%d, want 0", len(out[1].Hours)) }
-	if len(out[2].Hours) != 1 { t.Errorf("out[2] hours len=%d, want 1", len(out[2].Hours)) }
+	if out[0].Error != nil {
+		t.Errorf("out[0] should be ok")
+	}
+	if out[1].Error == nil {
+		t.Errorf("out[1] should have error")
+	}
+	if out[2].Error != nil {
+		t.Errorf("out[2] should be ok")
+	}
+	if len(out[0].Hours) != 2 {
+		t.Errorf("out[0] hours len=%d, want 2", len(out[0].Hours))
+	}
+	if len(out[1].Hours) != 0 {
+		t.Errorf("out[1] hours len=%d, want 0", len(out[1].Hours))
+	}
+	if len(out[2].Hours) != 1 {
+		t.Errorf("out[2] hours len=%d, want 1", len(out[2].Hours))
+	}
 }
 
 // ── ProcessSites output types ───────────────────────────────────────────────────
@@ -175,7 +187,7 @@ func TestHourDataFields(t *testing.T) {
 					Time:              []string{"2026-04-26T00:00"},
 					IsDay:             []int{1},
 					PrecipitationProb: []float64{99.5},
-					Temperature2m:      []float64{-5.5},
+					Temperature2m:     []float64{-5.5},
 					CloudCover:        []float64{100},
 					WindSpeed10m:      []float64{50},
 					WindDirection10m:  []float64{359},
@@ -187,12 +199,24 @@ func TestHourDataFields(t *testing.T) {
 	out := ProcessSites(results)
 
 	h := out[0].Hours[0]
-	if h.Rain != 99.5     { t.Errorf("Rain=%v, want 99.5", h.Rain) }
-	if h.Temp != -5.5    { t.Errorf("Temp=%v, want -5.5", h.Temp) }
-	if h.Cloud != 100    { t.Errorf("Cloud=%v, want 100", h.Cloud) }
-	if h.WindSpeed != 50  { t.Errorf("WindSpeed=%v, want 50", h.WindSpeed) }
-	if h.WindDir != 359   { t.Errorf("WindDir=%v, want 359", h.WindDir) }
-	if h.Gusts != 60      { t.Errorf("Gusts=%v, want 60", h.Gusts) }
+	if h.Rain != 99.5 {
+		t.Errorf("Rain=%v, want 99.5", h.Rain)
+	}
+	if h.Temp != -5.5 {
+		t.Errorf("Temp=%v, want -5.5", h.Temp)
+	}
+	if h.Cloud != 100 {
+		t.Errorf("Cloud=%v, want 100", h.Cloud)
+	}
+	if h.WindSpeed != 50 {
+		t.Errorf("WindSpeed=%v, want 50", h.WindSpeed)
+	}
+	if h.WindDir != 359 {
+		t.Errorf("WindDir=%v, want 359", h.WindDir)
+	}
+	if h.Gusts != 60 {
+		t.Errorf("Gusts=%v, want 60", h.Gusts)
+	}
 }
 
 // ── ProcessSites preserves order ─────────────────────────────────────────────

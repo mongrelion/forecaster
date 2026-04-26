@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	cache   := forecast.NewCache()
+	cache := forecast.NewCache()
 	handler := api.NewHandler(cache)
 
 	mux := http.NewServeMux()

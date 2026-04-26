@@ -2,10 +2,10 @@ package forecast
 
 // SiteData is the processed output for a single site returned by the API.
 type SiteData struct {
-	Name      string          `json:"name"`
-	Direction [2]string      `json:"direction"`
-	Hours     []HourData     `json:"hours"`
-	Error     *string        `json:"error"` // null on success
+	Name      string     `json:"name"`
+	Direction [2]string  `json:"direction"`
+	Hours     []HourData `json:"hours"`
+	Error     *string    `json:"error"` // null on success
 }
 
 // HourData is a single hourly row exposed to the frontend.

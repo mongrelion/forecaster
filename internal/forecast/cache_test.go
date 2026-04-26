@@ -18,7 +18,7 @@ func makeTestResponse(n int) *OpenMeteoResponse {
 			CloudCover:        repeatedFloats(30, n),
 			WindSpeed10m:      repeatedFloats(12, n),
 			WindDirection10m:  repeatedFloats(200, n),
-			WindGusts10m:       repeatedFloats(15, n),
+			WindGusts10m:      repeatedFloats(15, n),
 		},
 	}
 }
