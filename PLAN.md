@@ -41,12 +41,12 @@ Move the sites list from `app.js` to a Go config package.
 Build the API client that fetches forecasts for all sites concurrently.
 
 ### Tasks
-- [ ] Create `internal/forecast/client.go`
-- [ ] Define response structs matching Open-Meteo JSON shape
-- [ ] Implement `FetchSite(site) (HourlyData, error)` — single site fetch
-- [ ] Implement `FetchAll(sites) []SiteResult` — concurrent fetch with `sync.WaitGroup` + error isolation
-- [ ] Always request 7 forecast days with `timezone=Europe/Stockholm`
-- [ ] Request fields: `is_day, precipitation_probability, temperature_2m, cloud_cover, wind_speed_10m, wind_direction_10m, wind_gusts_10m`
+- [x] Create `internal/forecast/client.go`
+- [x] Define response structs matching Open-Meteo JSON shape
+- [x] Implement `FetchSite(site) (HourlyData, error)` — single site fetch
+- [x] Implement `FetchAll(sites) []SiteResult` — concurrent fetch with `sync.WaitGroup` + error isolation
+- [x] Always request 7 forecast days with `timezone=Europe/Stockholm`
+- [x] Request fields: `is_day, precipitation_probability, temperature_2m, cloud_cover, wind_speed_10m, wind_direction_10m, wind_gusts_10m`
 
 ---
 
