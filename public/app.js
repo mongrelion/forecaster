@@ -408,6 +408,13 @@ function renderBestBet(bestBet) {
   container.appendChild(banner);
 }
 
+function updateFooterModel() {
+  const el = document.getElementById('model-name');
+  if (el && window._modelName) {
+    el.textContent = window._modelName;
+  }
+}
+
 function renderAll(results) {
   const grid = document.getElementById('site-grid');
   grid.innerHTML = '';
@@ -458,6 +465,8 @@ async function loadData() {
     const resp = await fetch('/api/forecast');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
+    window._modelName = data.model || null;
+    updateFooterModel();
     processAndRender(data.sites);
   } catch (err) {
     document.getElementById('site-grid').innerHTML =

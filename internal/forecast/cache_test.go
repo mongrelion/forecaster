@@ -173,10 +173,79 @@ func TestCacheGetNonExistent(t *testing.T) {
 	}
 }
 
-func TestCacheTTLConstant(t *testing.T) {
-	// Verify the TTL constant is set to 24 hours
-	if cacheTTL != 24*time.Hour {
-		t.Errorf("cacheTTL = %v, want 24h", cacheTTL)
+func TestNextRunCompletion(t *testing.T) {
+	tests := []struct {
+		name string
+		now  time.Time
+		want time.Time
+	}{
+		{
+			name: "at 04:00 UTC → next is 09:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 4, 0, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 10:00 UTC → next is 15:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 22:00 UTC → next is 03:00 UTC next day",
+			now:  time.Date(2026, 4, 26, 22, 0, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 27, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 03:00 UTC (exact completion) → next is 09:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 3, 0, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 00:00 UTC → next is 03:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 0, 0, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 02:59 UTC → next is 03:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 2, 59, 59, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 03:01 UTC → next is 09:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 3, 1, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "at 20:59 UTC → next is 21:00 UTC same day",
+			now:  time.Date(2026, 4, 26, 20, 59, 0, 0, time.UTC),
+			want: time.Date(2026, 4, 26, 21, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := nextRunCompletion(tt.now)
+			if !got.Equal(tt.want) {
+				t.Errorf("nextRunCompletion(%v) = %v, want %v", tt.now, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNextRunCompletionNonUTCTimezone(t *testing.T) {
+	// Input in non-UTC timezone should be converted to UTC internally.
+	// Stockholm is UTC+2 in April (CEST).
+	loc, err := time.LoadLocation("Europe/Stockholm")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 04:00 CEST = 02:00 UTC → next completion is 03:00 UTC
+	now := time.Date(2026, 4, 26, 4, 0, 0, 0, loc)
+	want := time.Date(2026, 4, 26, 3, 0, 0, 0, time.UTC)
+
+	got := nextRunCompletion(now)
+	if !got.Equal(want) {
+		t.Errorf("nextRunCompletion(%v) = %v, want %v", now, got, want)
 	}
 }
 

@@ -6,7 +6,7 @@ Instead of looking up 6 different forecasts and suffering decision paralysis, Fo
 
 ## Architecture
 
-A Go backend serves both the frontend assets and a JSON API. The backend fetches forecasts from [Open-Meteo](https://open-meteo.com), caches responses in-memory, and returns raw hourly data to the frontend. The frontend computes all flyability flags client-side so threshold changes don't require a network call.
+A Go backend serves both the frontend assets and a JSON API. The backend fetches ECMWF IFS HRES 9km forecasts from [Open-Meteo](https://open-meteo.com), caches responses in-memory (expiring at the next ECMWF model run completion), and returns raw hourly data to the frontend. The frontend computes all flyability flags client-side so threshold changes don't require a network call.
 
 ```
 ┌──────────┐    GET /api/forecast    ┌──────────┐    Open-Meteo API    ┌────────────┐
@@ -14,6 +14,7 @@ A Go backend serves both the frontend assets and a JSON API. The backend fetches
 │  app.js   │ ◀───────────────────── │  server  │ ◀────────────────── │  .com       │
 └──────────┘     JSON + static       └──────────┘    concurrent        └────────────┘
                                 assets (public/)     fetch + cache
+                                Weather model: ECMWF IFS HRES 9km
 ```
 
 ## Usage
@@ -59,7 +60,7 @@ An hour is **marginal** (amber) when direction and gusts are OK but exactly one 
 
 ## API
 
-**`GET /api/forecast`** — returns forecast data for all configured sites.
+**`GET /api/forecast`** — returns forecast data for all configured sites using the ECMWF IFS HRES 9km model.
 
 ```json
 {
@@ -82,11 +83,12 @@ An hour is **marginal** (amber) when direction and gusts are OK but exactly one 
       "error": null
     }
   ],
+  "model": "ECMWF IFS HRES 9km",
   "fetched_at": "2026-04-26T10:00:00Z"
 }
 ```
 
-Errors are surfaced per-site in the `error` field (null on success).
+Errors are surfaced per-site in the `error` field (null on success). The `model` field indicates which weather model was used.
 
 ## Flying sites
 
@@ -151,5 +153,6 @@ forecaster/
 - **Frontend:** Vanilla HTML + CSS + JS — zero dependencies
 - **Backend:** Go (stdlib) — no external dependencies
 - **Data:** [Open-Meteo](https://open-meteo.com) free weather API (no key required, CORS enabled)
-- **Caching:** In-memory, 24-hour TTL, per-coordinate key
+- **Weather model:** ECMWF IFS HRES 9km (via Open-Meteo)
+- **Caching:** In-memory, per-coordinate key, expires at next ECMWF run completion (03/09/15/21 UTC)
 - **Fonts:** Syne, Barlow, JetBrains Mono via Google Fonts

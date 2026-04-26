@@ -21,12 +21,12 @@ Add the `models=ecmwf_ifs` query parameter to the Open-Meteo API URL and expose 
 Replace the fixed 24h cache TTL with a model-run-aware expiration. ECMWF IFS produces new forecasts at 00, 06, 12, 18 UTC. Data becomes available approximately 3 hours after each run start (i.e., at 03, 09, 15, 21 UTC). Cache entries should expire at the next model run completion time, so fresh data is fetched as soon as a new run is available.
 
 ### Tasks
-- [ ] Implement `nextRunCompletion(now time.Time) time.Time` in `internal/forecast/cache.go` — returns the next ECMWF data availability time after `now` (03, 09, 15, or 21 UTC, rolling over to the next day if past 21:00 UTC)
-- [ ] Change `Cache.Set()` to set `expiresAt` to `nextRunCompletion(time.Now())` instead of `time.Now().Add(cacheTTL)`
-- [ ] Remove the `cacheTTL` constant (no longer needed)
-- [ ] Update `Cache.Get()` logic — expired entries already return `false`, no change needed
-- [ ] Update cache tests: replace TTL-based tests with run-completion-based tests (verify that entries cached at various times of day expire at the correct next run completion)
-- [ ] Add specific test cases for `nextRunCompletion()`:
+- [x] Implement `nextRunCompletion(now time.Time) time.Time` in `internal/forecast/cache.go` — returns the next ECMWF data availability time after `now` (03, 09, 15, or 21 UTC, rolling over to the next day if past 21:00 UTC)
+- [x] Change `Cache.Set()` to set `expiresAt` to `nextRunCompletion(time.Now())` instead of `time.Now().Add(cacheTTL)`
+- [x] Remove the `cacheTTL` constant (no longer needed)
+- [x] Update `Cache.Get()` logic — expired entries already return `false`, no change needed
+- [x] Update cache tests: replace TTL-based tests with run-completion-based tests (verify that entries cached at various times of day expire at the correct next run completion)
+- [x] Add specific test cases for `nextRunCompletion()`:
   - At 04:00 UTC → next completion is 09:00 UTC same day
   - At 10:00 UTC → next completion is 15:00 UTC same day
   - At 22:00 UTC → next completion is 03:00 UTC next day
@@ -39,9 +39,9 @@ Replace the fixed 24h cache TTL with a model-run-aware expiration. ECMWF IFS pro
 Add a `model` field to the forecast API response so the frontend can display which model is in use.
 
 ### Tasks
-- [ ] Add `Model string` field to `ForecastResponse` struct in `internal/api/handler.go` with JSON tag `"model"`
-- [ ] Set `Model` to `config.ModelName` when constructing the response in `ServeHTTP()`
-- [ ] Update handler tests to verify the `model` field is present and has the expected value
+- [x] Add `Model string` field to `ForecastResponse` struct in `internal/api/handler.go` with JSON tag `"model"`
+- [x] Set `Model` to `config.ModelName` when constructing the response in `ServeHTTP()`
+- [x] Update handler tests to verify the `model` field is present and has the expected value
 
 ---
 
@@ -50,10 +50,10 @@ Add a `model` field to the forecast API response so the frontend can display whi
 Update the frontend to show which forecast model is being used.
 
 ### Tasks
-- [ ] Read `model` from the API response in `loadData()` and store it (e.g., `window._modelName = data.model`)
-- [ ] Update the footer in `index.html` to show the model name (e.g., "ECMWF IFS HRES 9km via Open-Meteo" instead of just "Powered by Open-Meteo")
-- [ ] Alternatively, render the model name dynamically from the API response into the footer or controls bar
-- [ ] No changes to flyability logic, thresholds, rendering pipeline, or sorting — all untouched
+- [x] Read `model` from the API response in `loadData()` and store it (e.g., `window._modelName = data.model`)
+- [x] Update the footer in `index.html` to show the model name (e.g., "ECMWF IFS HRES 9km via Open-Meteo" instead of just "Powered by Open-Meteo")
+- [x] Alternatively, render the model name dynamically from the API response into the footer or controls bar
+- [x] No changes to flyability logic, thresholds, rendering pipeline, or sorting — all untouched
 
 ---
 
@@ -62,12 +62,12 @@ Update the frontend to show which forecast model is being used.
 Update project documentation to reflect the ECMWF switch.
 
 ### Tasks
-- [ ] Update `README.md`:
+- [x] Update `README.md`:
   - Architecture diagram text: mention ECMWF IFS HRES model
   - API section: note the `model` field in the response
   - Usage section: mention ECMWF model if relevant
   - Tech section: add "Weather model: ECMWF IFS HRES 9km (via Open-Meteo)"
-- [ ] Update `AGENTS.md`:
+- [x] Update `AGENTS.md`:
   - API section: add `models=ecmwf_ifs` parameter, mention ECMWF schedule
   - Note the smart cache strategy and model run times
   - Update any references to "default model" or "best match"
@@ -79,15 +79,15 @@ Update project documentation to reflect the ECMWF switch.
 Run the server and verify everything works with ECMWF data.
 
 ### Tasks
-- [ ] Run `make test` — all Go tests pass
-- [ ] Run `make run` — server starts without errors
-- [ ] Open browser, verify all 8 sites load with ECMWF data
-- [ ] Verify flyability evaluation still works correctly (green/amber/slate blocks)
-- [ ] Verify threshold controls re-process without network call
-- [ ] Verify refresh button fetches fresh data
-- [ ] Verify cache behavior: first call hits API, second call within same run window serves from cache
-- [ ] Verify model name is displayed in the frontend
-- [ ] Compare a few hours of ECMWF data vs the old default to confirm meaningful differences exist
+- [x] Run `make test` — all Go tests pass
+- [x] Run `make run` — server starts without errors
+- [x] Open browser, verify all 8 sites load with ECMWF data
+- [x] Verify flyability evaluation still works correctly (green/amber/slate blocks)
+- [x] Verify threshold controls re-process without network call
+- [x] Verify refresh button fetches fresh data
+- [x] Verify cache behavior: first call hits API, second call within same run window serves from cache
+- [x] Verify model name is displayed in the frontend
+- [x] Compare a few hours of ECMWF data vs the old default to confirm meaningful differences exist
 
 ---
 

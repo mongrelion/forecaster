@@ -6,7 +6,7 @@ Context and spec for AI agents (and developers) picking up this project.
 
 ## What this is
 
-A static single-page weather app for paragliding. It fetches hourly forecasts for a hardcoded list of flying sites from the Open-Meteo API, evaluates each hour against flyability criteria, and presents the results as colour-coded hour strips with flyable window summaries. No backend, no build step, no dependencies.
+A Go-backed single-page weather app for paragliding. A Go backend fetches ECMWF IFS HRES 9km hourly forecasts for a hardcoded list of flying sites from the Open-Meteo API, caches responses in-memory with model-run-aware expiration, and serves both the frontend assets and a JSON API. The frontend evaluates each hour against flyability criteria and presents colour-coded hour strips with flyable window summaries.
 
 ---
 
@@ -14,13 +14,21 @@ A static single-page weather app for paragliding. It fetches hourly forecasts fo
 
 ```
 forecaster/
-  index.html        Page structure and static markup
-  app.css           All styling — dark theme, layout, animations
-  app.js            All logic — data, API, evaluation, rendering
-  README.md         User + developer documentation
-  AGENTS.md         This file
+  cmd/server/main.go        — Entry point, HTTP server setup
+  internal/
+    api/handler.go           — HTTP handlers
+    config/sites.go          — Site list, constants
+    forecast/client.go       — Open-Meteo API client + concurrent fetch
+    forecast/cache.go        — In-memory cache with ECMWF run-aware expiration
+    forecast/processor.go    — Raw → processed data mapping
+  public/
+    index.html               — Page structure and static markup
+    app.css                  — All styling — dark theme, layout, animations
+    app.js                   — All logic — rendering, flyability, thresholds
+  README.md                  — User + developer documentation
+  AGENTS.md                  — This file
   docs/
-    wind-direction.jpeg   Visual reference for compass direction → degree mapping
+    wind-direction.jpeg      — Visual reference for compass direction → degree mapping
 ```
 
 ---
@@ -63,21 +71,57 @@ The site with the most total flyable hours wins. Tiebreaker: longest single wind
 
 ## API
 
-**Endpoint:** `https://api.open-meteo.com/v1/forecast`
+### Backend endpoint
 
-**Per-site parameters:**
+**`GET /api/forecast`** — returns ECMWF IFS HRES 9km forecast data for all configured sites.
+
+```json
+{
+  "sites": [
+    {
+      "name": "Balberget Ramp",
+      "direction": ["SSW", "WSW"],
+      "hours": [
+        {
+          "time": "2026-04-26T00:00",
+          "is_day": 1,
+          "wind_dir": 195,
+          "wind_speed": 12,
+          "gusts": 18,
+          "cloud": 45,
+          "rain": 10,
+          "temp": 8.5
+        }
+      ],
+      "error": null
+    }
+  ],
+  "model": "ECMWF IFS HRES 9km",
+  "fetched_at": "2026-04-26T10:00:00Z"
+}
 ```
-latitude, longitude  — site coordinates
-hourly               — is_day, precipitation_probability, temperature_2m,
-                       cloud_cover, wind_speed_10m, wind_direction_10m, wind_gusts_10m
-timezone             — Europe/Stockholm (returns timestamps in local Swedish time)
-past_days            — 0
-forecast_days        — user-selected: 1, 3, or 7
+
+### Open-Meteo upstream API
+
+The Go backend calls **`https://api.open-meteo.com/v1/forecast`** with these parameters per site:
+
+```
+latitude, longitude   — site coordinates
+models                — ecmwf_ifs (selects ECMWF IFS HRES 9km model)
+hourly                — is_day, precipitation_probability, temperature_2m,
+                        cloud_cover, wind_speed_10m, wind_direction_10m, wind_gusts_10m
+timezone              — Europe/Stockholm (returns timestamps in local Swedish time)
+past_days             — 0
+forecast_days         — 7
 ```
 
-**CORS:** `access-control-allow-origin: *` — safe to call directly from the browser.
+**CORS:** `access-control-allow-origin: *` — safe to call directly.
 
-All sites are fetched concurrently with `Promise.all`. Individual fetch failures are caught per-site and show an error card without breaking other sites.
+All sites are fetched concurrently with `sync.WaitGroup`. Individual fetch failures are caught per-site and surfaced in the `error` field without affecting other sites.
+
+### ECMWF run schedule
+
+ECMWF IFS produces new forecast runs at 00, 06, 12, 18 UTC. Data becomes available approximately 3 hours after each run start (i.e., at 03, 09, 15, 21 UTC). The cache is configured to expire at the next expected completion time, so fresh data is fetched automatically after each new run is published.
 
 ---
 
@@ -105,13 +149,13 @@ See `docs/wind-direction.jpeg` for a visual degree reference.
 ## State management
 
 ```
-state = { forecastDays, rainThreshold, cloudThreshold }
-rawResponses = []   // cached API JSON — survives threshold changes
+state = { rainThreshold, cloudThreshold, sortBy }
+_backendSites = []   // cached backend response — survives threshold changes
 ```
 
-- **Forecast day change** → re-fetches all sites → re-processes → re-renders
-- **Threshold change** → re-processes from `rawResponses` → re-renders (no network call)
-- **Refresh button** → same as forecast day change
+- **Data load** → fetches `GET /api/forecast` → processes → renders
+- **Threshold change** → re-processes from `_backendSites` → re-renders (no network call)
+- **Refresh button** → re-fetches all sites from the backend
 
 ---
 
@@ -119,8 +163,8 @@ rawResponses = []   // cached API JSON — survives threshold changes
 
 ```
 loadData()
-  └─ fetchAll(days)           Promise.all over SITES
-       └─ fetchSite()         one fetch per site, errors caught individually
+  └─ fetch('/api/forecast')   single fetch to Go backend
+       └─ backend fetches all 8 sites concurrently from Open-Meteo
 processAndRender()
   └─ processResponse()        per-site: maps hourly arrays → hour objects with flyable/marginal flags
   └─ findWindows()            groups consecutive flyable hours → window summaries
@@ -154,7 +198,9 @@ Fonts: **Syne** (site names, logo), **Barlow** (UI text), **JetBrains Mono** (al
 
 - **Timezone mismatch:** `todayStr()` uses the browser's local clock. If the user is not in Sweden, the "Today" label and day-of-week display may be off by ±1 day. For a personal local tool this is acceptable.
 - **avgDir circular average:** wind direction averaging uses a simple arithmetic mean, which breaks near 0°/360° (e.g., averaging 350° and 10° gives 180° instead of 0°). For the narrow windows typical in paragliding this is rarely an issue.
-- **Max gusts hard limit:** 25 km/h is coded as `MAX_GUSTS` in app.js. It is intentionally not exposed in the UI.
+- **Max gusts hard limit:** 25 km/h is coded as `MaxGusts` in `internal/config/sites.go`. It is intentionally not exposed in the UI.
+- **avgDir circular average:** wind direction averaging uses a simple arithmetic mean, which breaks near 0°/360° (e.g., averaging 350° and 10° gives 180° instead of 0°). For the narrow windows typical in paragliding this is rarely an issue.
+- **Cache expiration:** The cache expires at the next ECMWF run completion time (03, 09, 15, or 21 UTC), not a fixed TTL.
 
 ---
 

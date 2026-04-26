@@ -7,7 +7,26 @@ import (
 	"forecaster/internal/config"
 )
 
-const cacheTTL = 24 * time.Hour
+// runCompletionHours are the ECMWF IFS data availability times in UTC.
+// ECMWF runs start at 00, 06, 12, 18 UTC and data is available ~3h later.
+var runCompletionHours = []int{3, 9, 15, 21}
+
+// nextRunCompletion returns the next ECMWF run completion time in UTC after `now`.
+// Completion times are 03, 09, 15, 21 UTC. If past 21:00 UTC, it rolls to 03:00 UTC next day.
+func nextRunCompletion(now time.Time) time.Time {
+	utc := now.UTC()
+	year, month, day := utc.Date()
+
+	for _, h := range runCompletionHours {
+		candidate := time.Date(year, month, day, h, 0, 0, 0, time.UTC)
+		if utc.Before(candidate) {
+			return candidate
+		}
+	}
+
+	// Past 21:00 UTC, next completion is 03:00 UTC next day
+	return time.Date(year, month, day+1, 3, 0, 0, 0, time.UTC)
+}
 
 type entry struct {
 	data      *OpenMeteoResponse
@@ -79,10 +98,11 @@ func (c *Cache) Get(site config.Site) (*OpenMeteoResponse, bool) {
 	return e.data, true
 }
 
-// Set stores data in the cache for the site.
+// Set stores data in the cache for the site with an expiration
+// set to the next ECMWF run completion time.
 func (c *Cache) Set(site config.Site, data *OpenMeteoResponse) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.items[siteKey(site)] = &entry{data: data, expiresAt: time.Now().Add(cacheTTL)}
+	c.items[siteKey(site)] = &entry{data: data, expiresAt: nextRunCompletion(time.Now())}
 }

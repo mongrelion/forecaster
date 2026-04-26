@@ -22,6 +22,7 @@ func NewHandler(cache *forecast.Cache) *Handler {
 // ForecastResponse is the JSON shape returned by GET /api/forecast.
 type ForecastResponse struct {
 	Sites     []forecast.SiteData `json:"sites"`
+	Model     string              `json:"model"`
 	FetchedAt string              `json:"fetched_at"`
 }
 
@@ -32,6 +33,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := ForecastResponse{
 		Sites:     sites,
+		Model:     config.ModelName,
 		FetchedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 

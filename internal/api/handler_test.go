@@ -29,6 +29,7 @@ func TestForecastResponseJSONShape(t *testing.T) {
 	// by constructing a mock response and checking struct tags.
 	resp := ForecastResponse{
 		Sites:     []forecast.SiteData{},
+		Model:     "Test Model",
 		FetchedAt: "2026-04-26T10:00:00Z",
 	}
 	data, err := json.Marshal(resp)
@@ -43,6 +44,9 @@ func TestForecastResponseJSONShape(t *testing.T) {
 
 	if _, ok := got["sites"]; !ok {
 		t.Error("response should have 'sites' field")
+	}
+	if _, ok := got["model"]; !ok {
+		t.Error("response should have 'model' field")
 	}
 	if _, ok := got["fetched_at"]; !ok {
 		t.Error("response should have 'fetched_at' field")
@@ -59,6 +63,7 @@ func TestForecastResponseSitesField(t *testing.T) {
 	}
 	resp := ForecastResponse{
 		Sites:     []forecast.SiteData{sd},
+		Model:     "ECMWF IFS HRES 9km",
 		FetchedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -136,6 +141,11 @@ func TestHandlerResponseHasSitesAndFetchedAt(t *testing.T) {
 	// Should have 8 sites from config
 	if len(resp.Sites) != 8 {
 		t.Errorf("len(sites)=%d, want 8", len(resp.Sites))
+	}
+
+	// Should have the model name set
+	if resp.Model != "ECMWF IFS HRES 9km" {
+		t.Errorf("model=%q, want %q", resp.Model, "ECMWF IFS HRES 9km")
 	}
 }
 
