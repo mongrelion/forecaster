@@ -14,6 +14,7 @@ FROM alpine:3
 
 WORKDIR /app
 
+COPY --from=builder /app/public /app/public
 COPY --from=builder /forecaster /app/forecaster
 
 EXPOSE 8080

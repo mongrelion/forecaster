@@ -1,4 +1,5 @@
 .PHONY: build test run clean tidy
+NAME = mongrelion/forecaster
 
 build:
 	go build -o server ./cmd/server
@@ -15,3 +16,6 @@ clean:
 tidy:
 	go mod tidy
 	go fmt ./...
+
+image:
+	docker build -t $(NAME) .
