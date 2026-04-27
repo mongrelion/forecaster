@@ -16,6 +16,7 @@ func main() {
 
 	// API routes first — must match before static file server
 	mux.HandleFunc("GET /api/forecast", handler.ServeHTTP)
+	mux.HandleFunc("GET /healthz", handler.Healthz)
 
 	// Serve frontend assets
 	mux.Handle("/", http.FileServer(http.Dir("public")))
