@@ -1,107 +1,77 @@
-# Plan: Switch Forecast Provider to ECMWF IFS HRES
+# Sites Database as JSON — Execution Plan
 
-## Goal
-Replace Open-Meteo's default "best match" weather model with ECMWF IFS HRES 9km for more accurate forecasts at northern Swedish paragliding sites. The switch is made through Open-Meteo's existing JSON API by adding `&models=ecmwf_ifs` — no GRIB parsing, no new accounts, no API keys. The frontend API contract remains identical (same JSON shape), with a minor addition of a `model` field for display.
+> **Spec**: `docs/specs/sites-json/SPEC.md`
+> **Architecture**: Modular monolith — same pattern as current. Site list moves from a package-level `var Sites` in `internal/config/sites.go` to a JSON file at the project root. The handler receives sites via constructor injection (no global state). JSON is loaded once at startup with fail-fast validation. Configurable via `-sites` flag / `SITES_PATH` env var (12-Factor). Cache continues to key by microdegree lat/lon, so same-coordinate sites share cache entries — harmless and documented.
 
 ---
 
-## Stage 1 — Switch to ECMWF IFS Model in Go Backend
+## Stage 1 — Create `sites.json` and `LoadSites` function
 
-Add the `models=ecmwf_ifs` query parameter to the Open-Meteo API URL and expose a model name constant.
+Add the JSON file and a loading function with validation. Existing `config.Sites` global and its tests are untouched.
 
 ### Tasks
-- [x] Add `ModelName` constant (e.g., `"ECMWF IFS HRES 9km"`) to `internal/config/sites.go`
-- [x] Update `fetchFromAPI()` in `internal/forecast/client.go` to include `&models=ecmwf_ifs` in the URL parameters
-- [x] Verify the response JSON shape is identical to the current one (same hourly keys, same types) by running the existing tests
+- [x] Create `sites.json` at project root with all 8 existing sites in JSON format
+- [x] Add `LoadSites(path string) ([]Site, error)` to `internal/config/sites.go`
+- [x] Add `validateSites([]Site) error` with all validation rules
+- [x] Add new tests to `internal/config/sites_test.go`: `TestLoadSites_ValidFile`, `TestLoadSites_FileNotFound`, `TestLoadSites_InvalidJSON`, `TestLoadSites_EmptyArray`, `TestLoadSites_EmptyName`, `TestLoadSites_InvalidDirection`, `TestLoadSites_InvalidCoords`, `TestLoadSites_DuplicateName`, `TestLoadSites_Success`
+- [x] Run `go test ./internal/config/...` — both old and new tests pass
 
 ---
 
-## Stage 2 — Smart Cache Expiration Based on ECMWF Run Schedule
+## Stage 2 — Update handler to accept sites as a parameter
 
-Replace the fixed 24h cache TTL with a model-run-aware expiration. ECMWF IFS produces new forecasts at 00, 06, 12, 18 UTC. Data becomes available approximately 3 hours after each run start (i.e., at 03, 09, 15, 21 UTC). Cache entries should expire at the next model run completion time, so fresh data is fetched as soon as a new run is available.
+Handler stores its own `[]Site` slice. `main.go` still passes `config.Sites` for now — transitional state.
 
 ### Tasks
-- [x] Implement `nextRunCompletion(now time.Time) time.Time` in `internal/forecast/cache.go` — returns the next ECMWF data availability time after `now` (03, 09, 15, or 21 UTC, rolling over to the next day if past 21:00 UTC)
-- [x] Change `Cache.Set()` to set `expiresAt` to `nextRunCompletion(time.Now())` instead of `time.Now().Add(cacheTTL)`
-- [x] Remove the `cacheTTL` constant (no longer needed)
-- [x] Update `Cache.Get()` logic — expired entries already return `false`, no change needed
-- [x] Update cache tests: replace TTL-based tests with run-completion-based tests (verify that entries cached at various times of day expire at the correct next run completion)
-- [x] Add specific test cases for `nextRunCompletion()`:
-  - At 04:00 UTC → next completion is 09:00 UTC same day
-  - At 10:00 UTC → next completion is 15:00 UTC same day
-  - At 22:00 UTC → next completion is 03:00 UTC next day
-  - At 03:00 UTC (exact completion time) → next completion is 09:00 UTC (current data just became available, cache until next run)
+- [ ] Add `sites []config.Site` field to `Handler` struct in `internal/api/handler.go`
+- [ ] Change `NewHandler(cache)` to `NewHandler(sites []config.Site, cache *forecast.Cache)`
+- [ ] Replace `config.Sites` with `h.sites` in `ServeHTTP`
+- [ ] Update `cmd/server/main.go`: change `api.NewHandler(cache)` to `api.NewHandler(config.Sites, cache)`
+- [ ] Run `make test` — all tests pass
+- [ ] Run `make run` — all 8 sites appear in the frontend
 
 ---
 
-## Stage 3 — Add Model Info to API Response
+## Stage 3 — Wire up JSON loading in main.go, remove global
 
-Add a `model` field to the forecast API response so the frontend can display which model is in use.
+`main.go` loads sites from the JSON file. The `config.Sites` global and its tests are removed.
 
 ### Tasks
-- [x] Add `Model string` field to `ForecastResponse` struct in `internal/api/handler.go` with JSON tag `"model"`
-- [x] Set `Model` to `config.ModelName` when constructing the response in `ServeHTTP()`
-- [x] Update handler tests to verify the `model` field is present and has the expected value
+- [ ] Add `-sites` flag (default `sites.json`) to `cmd/server/main.go`
+- [ ] Add `SITES_PATH` env var support (wins over flag default if set)
+- [ ] Call `config.LoadSites(path)` at startup; `log.Fatalf` on error
+- [ ] Replace `config.Sites` with loaded slice in `NewHandler` call
+- [ ] Remove `var Sites = []Site{...}` from `internal/config/sites.go`
+- [ ] Remove old global-dependent tests from `internal/config/sites_test.go`: `TestSitesNotEmpty`, `TestSiteCount`, `TestAllSitesHaveName`, `TestAllSitesHaveTwoDirections`, `TestAllSitesHaveValidCoords`, `TestSiteNamesUnique`, `TestSitesExpectedSiteNames`
+- [ ] Run `make test` — only `LoadSites`-based tests remain in config package
+- [ ] Verify `rg "config\.Sites"` returns no results anywhere
+- [ ] Test: `SITES_PATH=/nonexistent go run ./cmd/server` fails with a clear error
+- [ ] Test: `go run ./cmd/server -sites /nonexistent` fails with a clear error
+- [ ] Test: `go run ./cmd/server` loads `sites.json` and serves all 8 sites
 
 ---
 
-## Stage 4 — Frontend Model Display
+## Stage 4 — Update handler tests
 
-Update the frontend to show which forecast model is being used.
+Handler tests load sites from `sites.json` instead of the removed global. Tests are resilient to site list changes.
 
 ### Tasks
-- [x] Read `model` from the API response in `loadData()` and store it (e.g., `window._modelName = data.model`)
-- [x] Update the footer in `index.html` to show the model name (e.g., "ECMWF IFS HRES 9km via Open-Meteo" instead of just "Powered by Open-Meteo")
-- [x] Alternatively, render the model name dynamically from the API response into the footer or controls bar
-- [x] No changes to flyability logic, thresholds, rendering pipeline, or sorting — all untouched
+- [ ] Add `loadTestSites(t)` helper to `internal/api/handler_test.go` using `config.LoadSites("../../sites.json")`
+- [ ] Replace all `NewHandler(config.Sites, nil)` with `NewHandler(loadTestSites(t), nil)`
+- [ ] Replace hardcoded `8` with `len(testSites)` in all assertions
+- [ ] Rename `TestHandlerReturnsAll8SitesWithNames` to `TestHandlerReturnsExpectedSitesWithNames`
+- [ ] Run `make test` — zero failures
 
 ---
 
-## Stage 5 — Documentation Updates
+## Stage 5 — Documentation
 
-Update project documentation to reflect the ECMWF switch.
+Update README and AGENTS to reflect the JSON file as the source of truth.
 
 ### Tasks
-- [x] Update `README.md`:
-  - Architecture diagram text: mention ECMWF IFS HRES model
-  - API section: note the `model` field in the response
-  - Usage section: mention ECMWF model if relevant
-  - Tech section: add "Weather model: ECMWF IFS HRES 9km (via Open-Meteo)"
-- [x] Update `AGENTS.md`:
-  - API section: add `models=ecmwf_ifs` parameter, mention ECMWF schedule
-  - Note the smart cache strategy and model run times
-  - Update any references to "default model" or "best match"
-
----
-
-## Stage 6 — End-to-End Verification
-
-Run the server and verify everything works with ECMWF data.
-
-### Tasks
-- [x] Run `make test` — all Go tests pass
-- [x] Run `make run` — server starts without errors
-- [x] Open browser, verify all 8 sites load with ECMWF data
-- [x] Verify flyability evaluation still works correctly (green/amber/slate blocks)
-- [x] Verify threshold controls re-process without network call
-- [x] Verify refresh button fetches fresh data
-- [x] Verify cache behavior: first call hits API, second call within same run window serves from cache
-- [x] Verify model name is displayed in the frontend
-- [x] Compare a few hours of ECMWF data vs the old default to confirm meaningful differences exist
-
----
-
-## File Summary
-
-| File | Action |
-|------|--------|
-| `internal/config/sites.go` | Add `ModelName` constant |
-| `internal/forecast/client.go` | Add `&models=ecmwf_ifs` to URL |
-| `internal/forecast/cache.go` | Replace fixed TTL with `nextRunCompletion()`, remove `cacheTTL` |
-| `internal/forecast/cache_test.go` | Rewrite TTL tests as run-completion tests, add `nextRunCompletion` tests |
-| `internal/api/handler.go` | Add `Model` field to `ForecastResponse`, populate from config |
-| `internal/api/handler_test.go` | Verify `model` field in response |
-| `public/app.js` | Read `model` from API response, store for display |
-| `public/index.html` | Update footer to show model name |
-| `README.md` | Update architecture, API, tech sections |
-| `AGENTS.md` | Update API section, cache strategy notes |
+- [ ] Update `README.md`: replace Go snippet with JSON example in "Adding or editing sites"
+- [ ] Update `README.md`: point "Flying sites" section to `sites.json`
+- [ ] Update `README.md`: add `sites.json` to project structure
+- [ ] Update `AGENTS.md`: add `sites.json` to file structure
+- [ ] Update `AGENTS.md`: note sites are loaded from JSON at startup
+- [ ] Remove stale `config.Sites` references from both docs

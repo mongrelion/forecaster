@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Balberget Ramp",
+    "direction": ["SSW", "WSW"],
+    "lat": 63.94344038093285,
+    "lon": 19.046277812311036
+  },
+  {
+    "name": "Balberget Stuga",
+    "direction": ["ESE", "SSE"],
+    "lat": 63.94013281904288,
+    "lon": 19.122045235179684
+  },
+  {
+    "name": "Tavelsjö",
+    "direction": ["ENE", "E"],
+    "lat": 64.01453496664449,
+    "lon": 20.0159563
+  },
+  {
+    "name": "Storuman",
+    "direction": ["SE", "NW"],
+    "lat": 64.96104228812447,
+    "lon": 17.69696781869336
+  },
+  {
+    "name": "Dalsberget",
+    "direction": ["ENE", "ESE"],
+    "lat": 62.91695106970932,
+    "lon": 18.466744719924737
+  },
+  {
+    "name": "Dundret",
+    "direction": ["NW", "ENE"],
+    "lat": 67.11411862249734,
+    "lon": 20.588067722234612
+  },
+  {
+    "name": "Kittelfjäll",
+    "direction": ["ESE", "SSE"],
+    "lat": 65.25436262582429,
+    "lon": 15.487933185539914
+  },
+  {
+    "name": "Klutmarksbacken",
+    "direction": ["SSW", "WSW"],
+    "lat": 64.72117147014961,
+    "lon": 20.782167371833356
+  }
+]
