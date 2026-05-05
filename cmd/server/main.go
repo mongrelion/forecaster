@@ -1,8 +1,10 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"forecaster/internal/api"
 	"forecaster/internal/config"
@@ -10,8 +12,20 @@ import (
 )
 
 func main() {
+	// Resolve sites path: SITES_PATH env var wins over -sites flag default.
+	sitesPath := flag.String("sites", "sites.json", "path to sites JSON file")
+	flag.Parse()
+	if v := os.Getenv("SITES_PATH"); v != "" {
+		*sitesPath = v
+	}
+
+	sites, err := config.LoadSites(*sitesPath)
+	if err != nil {
+		log.Fatalf("loading sites: %v", err)
+	}
+
 	cache := forecast.NewCache()
-	handler := api.NewHandler(config.Sites, cache)
+	handler := api.NewHandler(sites, cache)
 
 	mux := http.NewServeMux()
 

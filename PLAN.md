@@ -37,17 +37,17 @@ Handler stores its own `[]Site` slice. `main.go` still passes `config.Sites` for
 `main.go` loads sites from the JSON file. The `config.Sites` global and its tests are removed.
 
 ### Tasks
-- [ ] Add `-sites` flag (default `sites.json`) to `cmd/server/main.go`
-- [ ] Add `SITES_PATH` env var support (wins over flag default if set)
-- [ ] Call `config.LoadSites(path)` at startup; `log.Fatalf` on error
-- [ ] Replace `config.Sites` with loaded slice in `NewHandler` call
-- [ ] Remove `var Sites = []Site{...}` from `internal/config/sites.go`
-- [ ] Remove old global-dependent tests from `internal/config/sites_test.go`: `TestSitesNotEmpty`, `TestSiteCount`, `TestAllSitesHaveName`, `TestAllSitesHaveTwoDirections`, `TestAllSitesHaveValidCoords`, `TestSiteNamesUnique`, `TestSitesExpectedSiteNames`
-- [ ] Run `make test` — only `LoadSites`-based tests remain in config package
-- [ ] Verify `rg "config\.Sites"` returns no results anywhere
-- [ ] Test: `SITES_PATH=/nonexistent go run ./cmd/server` fails with a clear error
-- [ ] Test: `go run ./cmd/server -sites /nonexistent` fails with a clear error
-- [ ] Test: `go run ./cmd/server` loads `sites.json` and serves all 8 sites
+- [x] Add `-sites` flag (default `sites.json`) to `cmd/server/main.go`
+- [x] Add `SITES_PATH` env var support (wins over flag default if set)
+- [x] Call `config.LoadSites(path)` at startup; `log.Fatalf` on error
+- [x] Replace `config.Sites` with loaded slice in `NewHandler` call
+- [x] Remove `var Sites = []Site{...}` from `internal/config/sites.go`
+- [x] Remove old global-dependent tests from `internal/config/sites_test.go`: `TestSitesNotEmpty`, `TestSiteCount`, `TestAllSitesHaveName`, `TestAllSitesHaveTwoDirections`, `TestAllSitesHaveValidCoords`, `TestSiteNamesUnique`, `TestSitesExpectedSiteNames`
+- [x] Run `make test` — only `LoadSites`-based tests remain in config package
+- [x] Verify `rg "config\.Sites"` returns no results anywhere
+- [x] Test: `SITES_PATH=/nonexistent go run ./cmd/server` fails with a clear error
+- [x] Test: `go run ./cmd/server -sites /nonexistent` fails with a clear error
+- [x] Test: `go run ./cmd/server` loads `sites.json` and serves all 8 sites
 
 ---
 
@@ -56,11 +56,11 @@ Handler stores its own `[]Site` slice. `main.go` still passes `config.Sites` for
 Handler tests load sites from `sites.json` instead of the removed global. Tests are resilient to site list changes.
 
 ### Tasks
-- [ ] Add `loadTestSites(t)` helper to `internal/api/handler_test.go` using `config.LoadSites("../../sites.json")`
-- [ ] Replace all `NewHandler(config.Sites, nil)` with `NewHandler(loadTestSites(t), nil)`
-- [ ] Replace hardcoded `8` with `len(testSites)` in all assertions
-- [ ] Rename `TestHandlerReturnsAll8SitesWithNames` to `TestHandlerReturnsExpectedSitesWithNames`
-- [ ] Run `make test` — zero failures
+- [x] Add `loadTestSites(t)` helper to `internal/api/handler_test.go` using `config.LoadSites("../../sites.json")`
+- [x] Replace all `NewHandler(config.Sites, nil)` with `NewHandler(loadTestSites(t), nil)`
+- [x] Replace hardcoded `8` with `len(testSites)` in all assertions
+- [x] Rename `TestHandlerReturnsAll8SitesWithNames` to `TestHandlerReturnsExpectedSitesWithNames`
+- [x] Run `make test` — zero failures
 
 ---
 

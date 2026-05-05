@@ -12,11 +12,22 @@ import (
 	"forecaster/internal/forecast"
 )
 
+// loadTestSites loads sites from the project's sites.json.
+// The test runs from internal/api/, so we go up two levels.
+func loadTestSites(t *testing.T) []config.Site {
+	t.Helper()
+	sites, err := config.LoadSites("../../sites.json")
+	if err != nil {
+		t.Fatalf("loadTestSites: %v", err)
+	}
+	return sites
+}
+
 func TestHandlerContentType(t *testing.T) {
 	// Use a nil cache — FetchAll will call Open-Meteo in-process.
 	// We can't easily test without mocking, so we just verify the
 	// handler struct can be created and has the right fields.
-	h := NewHandler(config.Sites, nil)
+	h := NewHandler(loadTestSites(t), nil)
 	if h == nil {
 		t.Fatal("NewHandler returned nil")
 	}
@@ -101,7 +112,7 @@ func TestForecastResponseSitesField(t *testing.T) {
 func TestHandlerServesHTTP(t *testing.T) {
 	// Test that the handler responds to a GET request with status 200.
 	// Uses a real in-process FetchAll call, so this is an integration test.
-	h := NewHandler(config.Sites, nil)
+	h := NewHandler(loadTestSites(t), nil)
 	req := httptest.NewRequest("GET", "/api/forecast", nil)
 	rec := httptest.NewRecorder()
 
@@ -118,7 +129,8 @@ func TestHandlerServesHTTP(t *testing.T) {
 }
 
 func TestHandlerResponseHasSitesAndFetchedAt(t *testing.T) {
-	h := NewHandler(config.Sites, nil)
+	sites := loadTestSites(t)
+	h := NewHandler(sites, nil)
 	req := httptest.NewRequest("GET", "/api/forecast", nil)
 	rec := httptest.NewRecorder()
 
@@ -139,9 +151,9 @@ func TestHandlerResponseHasSitesAndFetchedAt(t *testing.T) {
 		t.Errorf("fetched_at=%q is not valid RFC3339: %v", resp.FetchedAt, err)
 	}
 
-	// Should have 8 sites from config
-	if len(resp.Sites) != 8 {
-		t.Errorf("len(sites)=%d, want 8", len(resp.Sites))
+	// Should have the expected number of sites
+	if len(resp.Sites) != len(sites) {
+		t.Errorf("len(sites)=%d, want %d", len(resp.Sites), len(sites))
 	}
 
 	// Should have the model name set
@@ -150,8 +162,9 @@ func TestHandlerResponseHasSitesAndFetchedAt(t *testing.T) {
 	}
 }
 
-func TestHandlerReturnsAll8SitesWithNames(t *testing.T) {
-	h := NewHandler(config.Sites, nil)
+func TestHandlerReturnsExpectedSitesWithNames(t *testing.T) {
+	sites := loadTestSites(t)
+	h := NewHandler(sites, nil)
 	req := httptest.NewRequest("GET", "/api/forecast", nil)
 	rec := httptest.NewRecorder()
 
@@ -160,20 +173,16 @@ func TestHandlerReturnsAll8SitesWithNames(t *testing.T) {
 	var resp ForecastResponse
 	json.Unmarshal(rec.Body.Bytes(), &resp)
 
-	expected := []string{
-		"Balberget Ramp", "Balberget Stuga", "Tavelsjö",
-		"Storuman", "Dalsberget", "Dundret",
-		"Kittelfjäll", "Klutmarksbacken",
-	}
-	for i, name := range expected {
-		if resp.Sites[i].Name != name {
-			t.Errorf("Sites[%d].Name=%q, want %q", i, resp.Sites[i].Name, name)
+	for i, site := range sites {
+		if resp.Sites[i].Name != site.Name {
+			t.Errorf("Sites[%d].Name=%q, want %q", i, resp.Sites[i].Name, site.Name)
 		}
 	}
 }
 
 func TestHandlerReturnsAllSiteDirections(t *testing.T) {
-	h := NewHandler(config.Sites, nil)
+	sites := loadTestSites(t)
+	h := NewHandler(sites, nil)
 	req := httptest.NewRequest("GET", "/api/forecast", nil)
 	rec := httptest.NewRecorder()
 
@@ -190,8 +199,9 @@ func TestHandlerReturnsAllSiteDirections(t *testing.T) {
 }
 
 func TestHandlerCaches(t *testing.T) {
+	sites := loadTestSites(t)
 	cache := forecast.NewCache()
-	h := NewHandler(config.Sites, cache)
+	h := NewHandler(sites, cache)
 
 	// First request — will hit Open-Meteo
 	req := httptest.NewRequest("GET", "/api/forecast", nil)
@@ -215,14 +225,14 @@ func TestHandlerCaches(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &resp1)
 	json.Unmarshal(rec2.Body.Bytes(), &resp2)
 
-	// Both should have 8 sites
-	if len(resp1.Sites) != 8 || len(resp2.Sites) != 8 {
-		t.Error("both requests should return 8 sites")
+	// Both should have the expected number of sites
+	if len(resp1.Sites) != len(sites) || len(resp2.Sites) != len(sites) {
+		t.Error("both requests should return the right number of sites")
 	}
 }
 
 func TestHandlerJSONIsReadable(t *testing.T) {
-	h := NewHandler(config.Sites, nil)
+	h := NewHandler(loadTestSites(t), nil)
 	req := httptest.NewRequest("GET", "/api/forecast", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -240,7 +250,7 @@ func TestHandlerJSONIsReadable(t *testing.T) {
 }
 
 func TestHandlerHTTPMethod(t *testing.T) {
-	h := NewHandler(config.Sites, nil)
+	h := NewHandler(loadTestSites(t), nil)
 
 	// POST should still work (handler doesn't check method, but HTTP routing does).
 	// We test that a routed POST goes through handler.
