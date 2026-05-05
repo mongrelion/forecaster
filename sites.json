@@ -46,5 +46,11 @@
     "direction": ["SSW", "WSW"],
     "lat": 64.72117147014961,
     "lon": 20.782167371833356
+  },
+  {
+    "name": "Lofsdalen",
+    "direction": ["W", "WSW", "WNW", "N", "S", "E"],
+    "lat": 62.130126,
+    "lon": 13.319282
   }
 ]
