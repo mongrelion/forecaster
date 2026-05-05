@@ -5,12 +5,13 @@ import (
 	"net/http"
 
 	"forecaster/internal/api"
+	"forecaster/internal/config"
 	"forecaster/internal/forecast"
 )
 
 func main() {
 	cache := forecast.NewCache()
-	handler := api.NewHandler(cache)
+	handler := api.NewHandler(config.Sites, cache)
 
 	mux := http.NewServeMux()
 

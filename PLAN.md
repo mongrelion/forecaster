@@ -23,12 +23,12 @@ Add the JSON file and a loading function with validation. Existing `config.Sites
 Handler stores its own `[]Site` slice. `main.go` still passes `config.Sites` for now — transitional state.
 
 ### Tasks
-- [ ] Add `sites []config.Site` field to `Handler` struct in `internal/api/handler.go`
-- [ ] Change `NewHandler(cache)` to `NewHandler(sites []config.Site, cache *forecast.Cache)`
-- [ ] Replace `config.Sites` with `h.sites` in `ServeHTTP`
-- [ ] Update `cmd/server/main.go`: change `api.NewHandler(cache)` to `api.NewHandler(config.Sites, cache)`
-- [ ] Run `make test` — all tests pass
-- [ ] Run `make run` — all 8 sites appear in the frontend
+- [x] Add `sites []config.Site` field to `Handler` struct in `internal/api/handler.go`
+- [x] Change `NewHandler(cache)` to `NewHandler(sites []config.Site, cache *forecast.Cache)`
+- [x] Replace `config.Sites` with `h.sites` in `ServeHTTP`
+- [x] Update `cmd/server/main.go`: change `api.NewHandler(cache)` to `api.NewHandler(config.Sites, cache)`
+- [x] Run `make test` — all tests pass
+- [x] Run `make run` — all 8 sites appear in the frontend
 
 ---
 

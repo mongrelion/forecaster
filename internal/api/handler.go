@@ -11,12 +11,13 @@ import (
 
 // Handler serves forecast data to the frontend.
 type Handler struct {
+	sites []config.Site
 	cache *forecast.Cache
 }
 
-// NewHandler creates a Handler with the given cache.
-func NewHandler(cache *forecast.Cache) *Handler {
-	return &Handler{cache: cache}
+// NewHandler creates a Handler with the given sites and cache.
+func NewHandler(sites []config.Site, cache *forecast.Cache) *Handler {
+	return &Handler{sites: sites, cache: cache}
 }
 
 // ForecastResponse is the JSON shape returned by GET /api/forecast.
@@ -28,7 +29,7 @@ type ForecastResponse struct {
 
 // ServeHTTP handles GET /api/forecast.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	results := forecast.FetchAll(config.Sites, h.cache)
+	results := forecast.FetchAll(h.sites, h.cache)
 	sites := forecast.ProcessSites(results)
 
 	resp := ForecastResponse{
