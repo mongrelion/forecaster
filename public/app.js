@@ -82,12 +82,13 @@ function blockColor(hour) {
 /**
  * Compute flyability flags for each hour in the backend's response.
  * direction comes from the backend (not SITES reference array).
- * gusts check uses 25 km/h hard limit.
+ * gusts check uses the server-provided max gusts threshold.
  */
 function processResponse(siteData) {
+  const maxGusts = window._maxGusts || 25;
   return siteData.hours.map(h => {
     const dirOk   = isWindInRange(h.wind_dir, compassToRange(...siteData.direction));
-    const gustsOk = h.gusts     <= 25;
+    const gustsOk = h.gusts     <= maxGusts;
     const cloudOk = h.cloud     <= state.cloudThreshold;
     const rainOk  = h.rain      <= state.rainThreshold;
 
@@ -235,6 +236,7 @@ function windArrowSvg(degrees, cls = 'wind-arrow') {
 function buildTooltipHTML(hour) {
   const dateLabel = formatDate(hour.time);
   const timeLabel = formatTime(hour.time);
+  const maxGusts = window._maxGusts || 25;
 
   if (hour.isDay === 0) {
     return `<div class="tt-header">${dateLabel} · ${timeLabel}</div>
@@ -250,7 +252,7 @@ function buildTooltipHTML(hour) {
   return `
     <div class="tt-header">${dateLabel} · ${timeLabel}</div>
     ${row(hour.dirOk,                 'Direction', degToCompass(hour.windDir))}
-    ${row(hour.windSpeed <= 25,       'Wind',      `${Math.round(hour.windSpeed)} km/h`)}
+    ${row(hour.windSpeed <= maxGusts,       'Wind',      `${Math.round(hour.windSpeed)} km/h`)}
     ${row(hour.gustsOk,              'Gusts',     `${Math.round(hour.gusts)} km/h`)}
     ${row(hour.cloudOk,              'Cloud',     `${hour.cloud}%`)}
     ${row(hour.rainOk,               'Rain',      `${hour.rain}%`)}
@@ -466,6 +468,7 @@ async function loadData() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     window._modelName = data.model || null;
+    window._maxGusts = data.max_gusts || 25;
     updateFooterModel();
     processAndRender(data.sites);
   } catch (err) {

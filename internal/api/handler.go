@@ -13,28 +13,31 @@ import (
 type Handler struct {
 	sites []config.Site
 	cache *forecast.Cache
+	cfg   config.ServerConfig
 }
 
-// NewHandler creates a Handler with the given sites and cache.
-func NewHandler(sites []config.Site, cache *forecast.Cache) *Handler {
-	return &Handler{sites: sites, cache: cache}
+// NewHandler creates a Handler with the given sites, cache, and config.
+func NewHandler(sites []config.Site, cache *forecast.Cache, cfg config.ServerConfig) *Handler {
+	return &Handler{sites: sites, cache: cache, cfg: cfg}
 }
 
 // ForecastResponse is the JSON shape returned by GET /api/forecast.
 type ForecastResponse struct {
 	Sites     []forecast.SiteData `json:"sites"`
 	Model     string              `json:"model"`
+	MaxGusts  float64             `json:"max_gusts"`
 	FetchedAt string              `json:"fetched_at"`
 }
 
 // ServeHTTP handles GET /api/forecast.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	results := forecast.FetchAll(h.sites, h.cache)
+	results := forecast.FetchAll(h.sites, h.cache, h.cfg)
 	sites := forecast.ProcessSites(results)
 
 	resp := ForecastResponse{
 		Sites:     sites,
 		Model:     config.ModelName,
+		MaxGusts:  h.cfg.MaxGusts,
 		FetchedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 

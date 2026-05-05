@@ -21,6 +21,8 @@ A Go backend serves both the frontend assets and a JSON API. The backend fetches
 
 ### Running the server
 
+No environment variables are required for local development. All settings have sensible defaults.
+
 ```
 # Build and run (default :8080)
 make run
@@ -34,6 +36,19 @@ go run ./cmd/server
 
 Then open **http://localhost:8080** in any modern browser.
 
+### Docker
+
+```
+# Build the image
+make image
+
+# Run with defaults (port 8080)
+docker run --rm -p 8080:8080 mongrelion/forecaster
+
+# Override port and timezone
+docker run --rm -p 9090:9090 -e PORT=9090 -e TIMEZONE=Europe/Oslo mongrelion/forecaster
+```
+
 ### Controls
 
 | Control | What it does |
@@ -44,6 +59,24 @@ Then open **http://localhost:8080** in any modern browser.
 
 Hover any hour block on the strip to see the exact conditions for that hour.
 
+## Configuration
+
+All deploy-time settings are configured via environment variables. No configuration file is needed.
+
+| Env var | Default | Description |
+|---|---|---|
+| `HOST` | `""` (all interfaces) | Network interface to bind to |
+| `PORT` | `"8080"` | TCP port to listen on |
+| `PUBLIC_DIR` | `"public"` | Path to frontend static assets |
+| `SITES_PATH` | `"sites.json"` | Path to flying sites JSON database |
+| `OPEN_METEO_URL` | `"https://api.open-meteo.com/v1/forecast"` | Base URL for Open-Meteo forecast API |
+| `FORECAST_DAYS` | `7` | Number of forecast days to fetch |
+| `TIMEZONE` | `"Europe/Stockholm"` | IANA timezone for forecast timestamps |
+| `HTTP_TIMEOUT` | `15` | HTTP client timeout in seconds |
+| `MAX_GUSTS` | `25` | Maximum safe wind gusts in km/h |
+
+All values can be omitted — the server starts with sensible defaults.
+
 ## Flyability criteria
 
 An hour is marked **flyable** (green) when all five conditions are met simultaneously:
@@ -51,7 +84,7 @@ An hour is marked **flyable** (green) when all five conditions are met simultane
 | Criterion | Threshold |
 |---|---|
 | Wind direction | Within the site's defined compass range |
-| Wind gusts | ≤ 25 km/h (fixed) |
+| Wind gusts | ≤ server-configured threshold (default 25 km/h) |
 | Cloud cover | ≤ configurable % (default 75%) |
 | Precipitation probability | ≤ configurable % (default 30%) |
 | Daylight | `is_day = 1` from the API — handles midnight sun correctly |

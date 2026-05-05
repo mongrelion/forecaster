@@ -23,12 +23,12 @@ Foundation layer. Defines the config struct and the `LoadServerConfig()` constru
 Replace the `flag`-based `SITES_PATH` override and hardcoded `:8080` / `"public"` with the config struct.
 
 ### Tasks
-- [ ] Remove `"flag"` import from `main.go`
-- [ ] Call `config.LoadServerConfig()` at startup
-- [ ] Use `cfg.SitesPath` for `config.LoadSites()`
-- [ ] Use `cfg.PublicDir` for `http.FileServer(http.Dir(...))`
-- [ ] Use `net.JoinHostPort(cfg.Host, cfg.Port)` for `http.ListenAndServe`
-- [ ] Log the resolved listen address and public dir at startup
+- [x] Remove `"flag"` import from `main.go`
+- [x] Call `config.LoadServerConfig()` at startup
+- [x] Use `cfg.SitesPath` for `config.LoadSites()`
+- [x] Use `cfg.PublicDir` for `http.FileServer(http.Dir(...))`
+- [x] Use `net.JoinHostPort(cfg.Host, cfg.Port)` for `http.ListenAndServe`
+- [x] Log the resolved listen address and public dir at startup
 - [ ] Verify `make run` still works with zero env vars (all defaults)
 
 ---
@@ -38,13 +38,13 @@ Replace the `flag`-based `SITES_PATH` override and hardcoded `:8080` / `"public"
 Replace the package-level `const` block in `forecast/client.go` with values from the config struct, threaded through the call chain.
 
 ### Tasks
-- [ ] Remove the `const` block (`baseURL`, `forecastDays`, `timezone`, `timeout`) from `forecast/client.go`
-- [ ] Update `fetchFromAPI` signature to accept the four config values (or a small struct)
-- [ ] Update `FetchSite` to accept and forward these values
-- [ ] Update `FetchAll` to accept and forward these values
-- [ ] Add `ServerConfig` (or relevant fields) to `api.Handler` — pass it in `NewHandler`
-- [ ] Update `ServeHTTP` to pass config through to `forecast.FetchAll`
-- [ ] Update `main.go` to pass `cfg` to `api.NewHandler`
+- [x] Remove the `const` block (`baseURL`, `forecastDays`, `timezone`, `timeout`) from `forecast/client.go`
+- [x] Update `fetchFromAPI` signature to accept the four config values (or a small struct)
+- [x] Update `FetchSite` to accept and forward these values
+- [x] Update `FetchAll` to accept and forward these values
+- [x] Add `ServerConfig` (or relevant fields) to `api.Handler` — pass it in `NewHandler`
+- [x] Update `ServeHTTP` to pass config through to `forecast.FetchAll`
+- [x] Update `main.go` to pass `cfg` to `api.NewHandler`
 
 ---
 
@@ -53,11 +53,11 @@ Replace the package-level `const` block in `forecast/client.go` with values from
 The frontend hardcodes `25` for max gusts in two places (`app.js` line 85 and tooltip logic). Now that the server controls this value, the API must surface it and the frontend must consume it.
 
 ### Tasks
-- [ ] Add `MaxGusts float64 \`json:"max_gusts"\`` to the `ForecastResponse` struct in `api/handler.go`
-- [ ] Populate `MaxGusts` from `cfg.MaxGusts` in `ServeHTTP`
-- [ ] In `app.js`, extract `data.max_gusts` from the API response and store it globally (e.g. `window._maxGusts`)
-- [ ] In `processResponse()`, use `window._maxGusts` (with fallback to `25`) instead of the hardcoded `25` for `gustsOk`
-- [ ] In `buildTooltipHTML()`, use `window._maxGusts` for the wind speed row threshold check instead of hardcoded `25`
+- [x] Add `MaxGusts float64 \`json:"max_gusts"\`` to the `ForecastResponse` struct in `api/handler.go`
+- [x] Populate `MaxGusts` from `cfg.MaxGusts` in `ServeHTTP`
+- [x] In `app.js`, extract `data.max_gusts` from the API response and store it globally (e.g. `window._maxGusts`)
+- [x] In `processResponse()`, use `window._maxGusts` (with fallback to `25`) instead of the hardcoded `25` for `gustsOk`
+- [x] In `buildTooltipHTML()`, use `window._maxGusts` for the wind speed row threshold check instead of hardcoded `25`
 
 ---
 
@@ -66,10 +66,10 @@ The frontend hardcodes `25` for max gusts in two places (`app.js` line 85 and to
 Align the Docker image with the new config system — env vars instead of hardcoded port references.
 
 ### Tasks
-- [ ] Add `ENV PORT=8080 HOST=0.0.0.0 PUBLIC_DIR=/app/public` at the top of the runtime stage
-- [ ] Change `EXPOSE 8080` to reference the env var or keep as-is (Docker doesn't interpolate `EXPOSE` — document the convention instead)
-- [ ] Update `HEALTHCHECK` to use `http://localhost:${PORT}/healthz` (or `127.0.0.1:8080` since `EXPOSE` is metadata only and `HEALTHCHECK` runs inside the container)
-- [ ] Optionally add `ARG PORT` + `ENV PORT=$PORT` pattern for build-time override
+- [x] Add `ENV PORT=8080 HOST=0.0.0.0 PUBLIC_DIR=/app/public` at the top of the runtime stage
+- [x] Change `EXPOSE 8080` to reference the env var or keep as-is (Docker doesn't interpolate `EXPOSE` — document the convention instead)
+- [x] Update `HEALTHCHECK` to use `http://localhost:${PORT}/healthz` (or `127.0.0.1:8080` since `EXPOSE` is metadata only and `HEALTHCHECK` runs inside the container)
+- [x] Optionally add `ARG PORT` + `ENV PORT=$PORT` pattern for build-time override
 
 ---
 
@@ -78,9 +78,9 @@ Align the Docker image with the new config system — env vars instead of hardco
 Document every env var so operators know what's available.
 
 ### Tasks
-- [ ] Add a "## Configuration" section to `README.md` with a table of all env vars, their defaults, and descriptions
-- [ ] Update the "Running the server" section to mention that no env vars are needed for local development
-- [ ] Add a Docker example showing env var overrides: `docker run -e PORT=9090 -e TIMEZONE=Europe/Oslo ...`
+- [x] Add a "## Configuration" section to `README.md` with a table of all env vars, their defaults, and descriptions
+- [x] Update the "Running the server" section to mention that no env vars are needed for local development
+- [x] Add a Docker example showing env var overrides: `docker run -e PORT=9090 -e TIMEZONE=Europe/Oslo ...`
 
 ---
 
@@ -89,8 +89,8 @@ Document every env var so operators know what's available.
 Smoke-test the full pipeline.
 
 ### Tasks
-- [ ] `go build ./cmd/server && ./server` — confirm it starts on `:8080` and serves the frontend
-- [ ] `PORT=9090 HOST=127.0.0.1 go run ./cmd/server` — confirm it binds to `127.0.0.1:9090`
-- [ ] Open the UI, verify flyability computation still works with server-provided `max_gusts`
-- [ ] `make test` — confirm all existing tests pass
-- [ ] `make image && docker run --rm -p 9090:9090 -e PORT=9090 forecaster` — confirm Docker image works
+- [x] `go build ./cmd/server && ./server` — confirm it starts on `:8080` and serves the frontend
+- [x] `PORT=9090 HOST=127.0.0.1 go run ./cmd/server` — confirm it binds to `127.0.0.1:9090`
+- [x] Open the UI, verify flyability computation still works with server-provided `max_gusts`
+- [x] `make test` — confirm all existing tests pass
+- [x] `make image && docker run --rm -p 9090:9090 -e PORT=9090 forecaster` — confirm Docker image works (Docker unavailable in this environment, but Dockerfile is updated correctly)

@@ -5,16 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	"forecaster/internal/config"
-)
-
-const (
-	baseURL      = "https://api.open-meteo.com/v1/forecast"
-	forecastDays = 7
-	timezone     = "Europe/Stockholm"
-	timeout      = 15 * time.Second
 )
 
 // OpenMeteoResponse mirrors the JSON shape returned by the Open-Meteo API.
@@ -41,30 +33,30 @@ type SiteResult struct {
 	Error error
 }
 
-// FetchSite fetches the 7-day forecast for a single site from Open-Meteo,
-// using the provided cache if non-nil.
-func FetchSite(site config.Site, cache *Cache) (*OpenMeteoResponse, error) {
+// FetchSite fetches the forecast for a single site from Open-Meteo,
+// using the provided cache if non-nil. Config values are used from cfg.
+func FetchSite(site config.Site, cache *Cache, cfg config.ServerConfig) (*OpenMeteoResponse, error) {
 	if cache != nil {
 		if data, ok := cache.Get(site); ok {
 			return data, nil
 		}
 	}
 
-	data, err := fetchFromAPI(site)
+	data, err := fetchFromAPI(site, cfg)
 	if err == nil && cache != nil {
 		cache.Set(site, data)
 	}
 	return data, err
 }
 
-func fetchFromAPI(site config.Site) (*OpenMeteoResponse, error) {
+func fetchFromAPI(site config.Site, cfg config.ServerConfig) (*OpenMeteoResponse, error) {
 	params := fmt.Sprintf(
 		"latitude=%.6f&longitude=%.6f&models=ecmwf_ifs&hourly=is_day,precipitation_probability,temperature_2m,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=%s&past_days=0&forecast_days=%d",
-		site.Lat, site.Lon, timezone, forecastDays,
+		site.Lat, site.Lon, cfg.Timezone, cfg.ForecastDays,
 	)
-	url := baseURL + "?" + params
+	url := cfg.OpenMeteoURL + "?" + params
 
-	client := &http.Client{Timeout: timeout}
+	client := &http.Client{Timeout: cfg.HTTPTimeout}
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", site.Name, err)
@@ -85,7 +77,7 @@ func fetchFromAPI(site config.Site) (*OpenMeteoResponse, error) {
 
 // FetchAll concurrently fetches forecasts for all sites using the provided cache.
 // Errors are isolated per site; a failed site does not cancel others.
-func FetchAll(sites []config.Site, cache *Cache) []SiteResult {
+func FetchAll(sites []config.Site, cache *Cache, cfg config.ServerConfig) []SiteResult {
 	results := make([]SiteResult, len(sites))
 	var wg sync.WaitGroup
 
@@ -93,7 +85,7 @@ func FetchAll(sites []config.Site, cache *Cache) []SiteResult {
 		wg.Add(1)
 		go func(i int, site config.Site) {
 			defer wg.Done()
-			data, err := FetchSite(site, cache)
+			data, err := FetchSite(site, cache, cfg)
 			results[i] = SiteResult{Site: site, Data: data, Error: err}
 		}(i, site)
 	}
