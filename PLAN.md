@@ -1,77 +1,96 @@
-# Sites Database as JSON — Execution Plan
+# 12-Factor Configuration — Execution Plan
 
-> **Spec**: `docs/specs/sites-json/SPEC.md`
-> **Architecture**: Modular monolith — same pattern as current. Site list moves from a package-level `var Sites` in `internal/config/sites.go` to a JSON file at the project root. The handler receives sites via constructor injection (no global state). JSON is loaded once at startup with fail-fast validation. Configurable via `-sites` flag / `SITES_PATH` env var (12-Factor). Cache continues to key by microdegree lat/lon, so same-coordinate sites share cache entries — harmless and documented.
-
----
-
-## Stage 1 — Create `sites.json` and `LoadSites` function
-
-Add the JSON file and a loading function with validation. Existing `config.Sites` global and its tests are untouched.
-
-### Tasks
-- [x] Create `sites.json` at project root with all 8 existing sites in JSON format
-- [x] Add `LoadSites(path string) ([]Site, error)` to `internal/config/sites.go`
-- [x] Add `validateSites([]Site) error` with all validation rules
-- [x] Add new tests to `internal/config/sites_test.go`: `TestLoadSites_ValidFile`, `TestLoadSites_FileNotFound`, `TestLoadSites_InvalidJSON`, `TestLoadSites_EmptyArray`, `TestLoadSites_EmptyName`, `TestLoadSites_InvalidDirection`, `TestLoadSites_InvalidCoords`, `TestLoadSites_DuplicateName`, `TestLoadSites_Success`
-- [x] Run `go test ./internal/config/...` — both old and new tests pass
+> **Spec**: None (architectural improvement)
+> **Architecture**: Centralize all deploy-time settings into a single `ServerConfig` struct populated from environment variables with sensible defaults (12-factor app, factor III). No external config libraries — pure `os.Getenv` + `strconv` to keep zero dependencies. Config is passed explicitly through the call chain. `ModelName` (`"ECMWF IFS HRES 9km"`) remains a hardcoded constant — it describes the implementation, not the deployment.
 
 ---
 
-## Stage 2 — Update handler to accept sites as a parameter
+## Stage 1 — Create `internal/config/env.go` with `ServerConfig`
 
-Handler stores its own `[]Site` slice. `main.go` still passes `config.Sites` for now — transitional state.
+Foundation layer. Defines the config struct and the `LoadServerConfig()` constructor. Every other stage depends on this.
 
 ### Tasks
-- [x] Add `sites []config.Site` field to `Handler` struct in `internal/api/handler.go`
-- [x] Change `NewHandler(cache)` to `NewHandler(sites []config.Site, cache *forecast.Cache)`
-- [x] Replace `config.Sites` with `h.sites` in `ServeHTTP`
-- [x] Update `cmd/server/main.go`: change `api.NewHandler(cache)` to `api.NewHandler(config.Sites, cache)`
-- [x] Run `make test` — all tests pass
-- [x] Run `make run` — all 8 sites appear in the frontend
+- [x] Create `internal/config/env.go`
+- [x] Define `ServerConfig` struct with fields: `Host`, `Port`, `PublicDir`, `SitesPath`, `OpenMeteoURL`, `ForecastDays`, `Timezone`, `HTTPTimeout`, `MaxGusts`
+- [x] Implement `LoadServerConfig() ServerConfig` — read each field from `os.Getenv` with documented defaults
+- [x] Add doc comments listing each env var, its default, and its purpose
+- [x] Keep `ModelName` as a package-level `const` in `config/sites.go` (unchanged — not configurable)
 
 ---
 
-## Stage 3 — Wire up JSON loading in main.go, remove global
+## Stage 2 — Wire `ServerConfig` into `main.go`
 
-`main.go` loads sites from the JSON file. The `config.Sites` global and its tests are removed.
+Replace the `flag`-based `SITES_PATH` override and hardcoded `:8080` / `"public"` with the config struct.
 
 ### Tasks
-- [x] Add `-sites` flag (default `sites.json`) to `cmd/server/main.go`
-- [x] Add `SITES_PATH` env var support (wins over flag default if set)
-- [x] Call `config.LoadSites(path)` at startup; `log.Fatalf` on error
-- [x] Replace `config.Sites` with loaded slice in `NewHandler` call
-- [x] Remove `var Sites = []Site{...}` from `internal/config/sites.go`
-- [x] Remove old global-dependent tests from `internal/config/sites_test.go`: `TestSitesNotEmpty`, `TestSiteCount`, `TestAllSitesHaveName`, `TestAllSitesHaveTwoDirections`, `TestAllSitesHaveValidCoords`, `TestSiteNamesUnique`, `TestSitesExpectedSiteNames`
-- [x] Run `make test` — only `LoadSites`-based tests remain in config package
-- [x] Verify `rg "config\.Sites"` returns no results anywhere
-- [x] Test: `SITES_PATH=/nonexistent go run ./cmd/server` fails with a clear error
-- [x] Test: `go run ./cmd/server -sites /nonexistent` fails with a clear error
-- [x] Test: `go run ./cmd/server` loads `sites.json` and serves all 8 sites
+- [ ] Remove `"flag"` import from `main.go`
+- [ ] Call `config.LoadServerConfig()` at startup
+- [ ] Use `cfg.SitesPath` for `config.LoadSites()`
+- [ ] Use `cfg.PublicDir` for `http.FileServer(http.Dir(...))`
+- [ ] Use `net.JoinHostPort(cfg.Host, cfg.Port)` for `http.ListenAndServe`
+- [ ] Log the resolved listen address and public dir at startup
+- [ ] Verify `make run` still works with zero env vars (all defaults)
 
 ---
 
-## Stage 4 — Update handler tests
+## Stage 3 — Plumb config through the forecast package
 
-Handler tests load sites from `sites.json` instead of the removed global. Tests are resilient to site list changes.
+Replace the package-level `const` block in `forecast/client.go` with values from the config struct, threaded through the call chain.
 
 ### Tasks
-- [x] Add `loadTestSites(t)` helper to `internal/api/handler_test.go` using `config.LoadSites("../../sites.json")`
-- [x] Replace all `NewHandler(config.Sites, nil)` with `NewHandler(loadTestSites(t), nil)`
-- [x] Replace hardcoded `8` with `len(testSites)` in all assertions
-- [x] Rename `TestHandlerReturnsAll8SitesWithNames` to `TestHandlerReturnsExpectedSitesWithNames`
-- [x] Run `make test` — zero failures
+- [ ] Remove the `const` block (`baseURL`, `forecastDays`, `timezone`, `timeout`) from `forecast/client.go`
+- [ ] Update `fetchFromAPI` signature to accept the four config values (or a small struct)
+- [ ] Update `FetchSite` to accept and forward these values
+- [ ] Update `FetchAll` to accept and forward these values
+- [ ] Add `ServerConfig` (or relevant fields) to `api.Handler` — pass it in `NewHandler`
+- [ ] Update `ServeHTTP` to pass config through to `forecast.FetchAll`
+- [ ] Update `main.go` to pass `cfg` to `api.NewHandler`
 
 ---
 
-## Stage 5 — Documentation
+## Stage 4 — Expose `MaxGusts` to the frontend
 
-Update README and AGENTS to reflect the JSON file as the source of truth.
+The frontend hardcodes `25` for max gusts in two places (`app.js` line 85 and tooltip logic). Now that the server controls this value, the API must surface it and the frontend must consume it.
 
 ### Tasks
-- [x] Update `README.md`: replace Go snippet with JSON example in "Adding or editing sites"
-- [x] Update `README.md`: point "Flying sites" section to `sites.json`
-- [x] Update `README.md`: add `sites.json` to project structure
-- [x] Update `AGENTS.md`: add `sites.json` to file structure
-- [x] Update `AGENTS.md`: note sites are loaded from JSON at startup
-- [x] Remove stale `config.Sites` references from both docs
+- [ ] Add `MaxGusts float64 \`json:"max_gusts"\`` to the `ForecastResponse` struct in `api/handler.go`
+- [ ] Populate `MaxGusts` from `cfg.MaxGusts` in `ServeHTTP`
+- [ ] In `app.js`, extract `data.max_gusts` from the API response and store it globally (e.g. `window._maxGusts`)
+- [ ] In `processResponse()`, use `window._maxGusts` (with fallback to `25`) instead of the hardcoded `25` for `gustsOk`
+- [ ] In `buildTooltipHTML()`, use `window._maxGusts` for the wind speed row threshold check instead of hardcoded `25`
+
+---
+
+## Stage 5 — Update Dockerfile for env-var parity
+
+Align the Docker image with the new config system — env vars instead of hardcoded port references.
+
+### Tasks
+- [ ] Add `ENV PORT=8080 HOST=0.0.0.0 PUBLIC_DIR=/app/public` at the top of the runtime stage
+- [ ] Change `EXPOSE 8080` to reference the env var or keep as-is (Docker doesn't interpolate `EXPOSE` — document the convention instead)
+- [ ] Update `HEALTHCHECK` to use `http://localhost:${PORT}/healthz` (or `127.0.0.1:8080` since `EXPOSE` is metadata only and `HEALTHCHECK` runs inside the container)
+- [ ] Optionally add `ARG PORT` + `ENV PORT=$PORT` pattern for build-time override
+
+---
+
+## Stage 6 — Update README with environment variable reference
+
+Document every env var so operators know what's available.
+
+### Tasks
+- [ ] Add a "## Configuration" section to `README.md` with a table of all env vars, their defaults, and descriptions
+- [ ] Update the "Running the server" section to mention that no env vars are needed for local development
+- [ ] Add a Docker example showing env var overrides: `docker run -e PORT=9090 -e TIMEZONE=Europe/Oslo ...`
+
+---
+
+## Stage 7 — End-to-end verification
+
+Smoke-test the full pipeline.
+
+### Tasks
+- [ ] `go build ./cmd/server && ./server` — confirm it starts on `:8080` and serves the frontend
+- [ ] `PORT=9090 HOST=127.0.0.1 go run ./cmd/server` — confirm it binds to `127.0.0.1:9090`
+- [ ] Open the UI, verify flyability computation still works with server-provided `max_gusts`
+- [ ] `make test` — confirm all existing tests pass
+- [ ] `make image && docker run --rm -p 9090:9090 -e PORT=9090 forecaster` — confirm Docker image works

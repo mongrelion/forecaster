@@ -134,8 +134,8 @@ func TestLoadSites_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading %s: %v", path, err)
 	}
-	if len(sites) != 8 {
-		t.Fatalf("want 8 sites from sites.json, got %d", len(sites))
+	if len(sites) != 9 {
+		t.Fatalf("want 9 sites from sites.json, got %d", len(sites))
 	}
 	expected := []struct {
 		name      string
@@ -151,6 +151,7 @@ func TestLoadSites_Success(t *testing.T) {
 		{"Dundret", [2]string{"NW", "ENE"}, 67.11411862249734, 20.588067722234612},
 		{"Kittelfjäll", [2]string{"ESE", "SSE"}, 65.25436262582429, 15.487933185539914},
 		{"Klutmarksbacken", [2]string{"SSW", "WSW"}, 64.72117147014961, 20.782167371833356},
+		{"Lofsdalen", [2]string{"W", "WSW"}, 62.130126, 13.319282},
 	}
 	for i, want := range expected {
 		got := sites[i]
