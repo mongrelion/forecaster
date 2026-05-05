@@ -69,9 +69,9 @@ Handler tests load sites from `sites.json` instead of the removed global. Tests 
 Update README and AGENTS to reflect the JSON file as the source of truth.
 
 ### Tasks
-- [ ] Update `README.md`: replace Go snippet with JSON example in "Adding or editing sites"
-- [ ] Update `README.md`: point "Flying sites" section to `sites.json`
-- [ ] Update `README.md`: add `sites.json` to project structure
-- [ ] Update `AGENTS.md`: add `sites.json` to file structure
-- [ ] Update `AGENTS.md`: note sites are loaded from JSON at startup
-- [ ] Remove stale `config.Sites` references from both docs
+- [x] Update `README.md`: replace Go snippet with JSON example in "Adding or editing sites"
+- [x] Update `README.md`: point "Flying sites" section to `sites.json`
+- [x] Update `README.md`: add `sites.json` to project structure
+- [x] Update `AGENTS.md`: add `sites.json` to file structure
+- [x] Update `AGENTS.md`: note sites are loaded from JSON at startup
+- [x] Remove stale `config.Sites` references from both docs

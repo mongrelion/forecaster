@@ -6,7 +6,7 @@ Context and spec for AI agents (and developers) picking up this project.
 
 ## What this is
 
-A Go-backed single-page weather app for paragliding. A Go backend fetches ECMWF IFS HRES 9km hourly forecasts for a hardcoded list of flying sites from the Open-Meteo API, caches responses in-memory with model-run-aware expiration, and serves both the frontend assets and a JSON API. The frontend evaluates each hour against flyability criteria and presents colour-coded hour strips with flyable window summaries.
+A Go-backed single-page weather app for paragliding. A Go backend fetches ECMWF IFS HRES 9km hourly forecasts for a list of flying sites from the Open-Meteo API, caches responses in-memory with model-run-aware expiration, and serves both the frontend assets and a JSON API. Sites are loaded from a [`sites.json`](sites.json) file at the project root. The frontend evaluates each hour against flyability criteria and presents colour-coded hour strips with flyable window summaries.
 
 ---
 
@@ -14,10 +14,11 @@ A Go-backed single-page weather app for paragliding. A Go backend fetches ECMWF 
 
 ```
 forecaster/
+  sites.json                 — Flying sites database (JSON, loaded at startup)
   cmd/server/main.go        — Entry point, HTTP server setup
   internal/
     api/handler.go           — HTTP handlers
-    config/sites.go          — Site list, constants
+    config/sites.go          — Site struct, constants, LoadSites/Validate
     forecast/client.go       — Open-Meteo API client + concurrent fetch
     forecast/cache.go        — In-memory cache with ECMWF run-aware expiration
     forecast/processor.go    — Raw → processed data mapping

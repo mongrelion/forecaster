@@ -15,8 +15,6 @@ type Site struct {
 	Lon       float64
 }
 
-
-
 // ModelName is the human-readable name of the weather model in use.
 const ModelName = "ECMWF IFS HRES 9km"
 

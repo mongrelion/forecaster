@@ -92,17 +92,24 @@ Errors are surfaced per-site in the `error` field (null on success). The `model`
 
 ## Flying sites
 
-For an up-to-date list of flying sites, see `internal/config/sites.go`
+For an up-to-date list of flying sites, see [`sites.json`](sites.json) at the project root.
 
 ## Adding or editing sites
 
-Edit the `Sites` slice in `internal/config/sites.go`:
+Edit [`sites.json`](sites.json) at the project root. Add a new object to the JSON array:
 
-```go
-{Name: "My Site", Direction: [2]string{"SSW", "WSW"}, Lat: 63.123, Lon: 18.456}
+```json
+{
+  "name": "My Site",
+  "direction": ["SSW", "WSW"],
+  "lat": 63.123,
+  "lon": 18.456
+}
 ```
 
-`Direction` is a `[from, to]` pair of 16-point compass names defining the acceptable wind range (clockwise). For ranges that cross north, e.g. `["NW", "NE"]`, wrap-around is handled automatically.
+No recompilation needed — restart the server to pick up changes.
+
+`direction` is a `[from, to]` pair of 16-point compass names defining the acceptable wind range (clockwise). For ranges that cross north, e.g. `["NW", "NE"]`, wrap-around is handled automatically.
 
 Valid compass points: `N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW`
 
@@ -128,11 +135,12 @@ See `docs/wind-direction.jpeg` for a visual degree reference.
 
 ```
 forecaster/
+  sites.json                   — Flying sites database (JSON, editable without recompilation)
   cmd/server/main.go          — Entry point, HTTP server setup
   internal/
     api/handler.go             — HTTP handlers
     api/handler_test.go
-    config/sites.go            — Site list, constants
+    config/sites.go            — Site struct, constants, LoadSites/Validate functions
     config/sites_test.go
     forecast/client.go         — Open-Meteo API client + concurrent fetch
     forecast/cache.go          — In-memory cache with 24h TTL
